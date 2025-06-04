@@ -13,7 +13,7 @@
 
 #include <dk_buttons_and_leds.h>
 /* STEP 7 - Include the header file of MY LBS customer service */
-#include "my_lbs.h"
+#include "my_pws.h"
 
 static const struct bt_le_adv_param *adv_param = BT_LE_ADV_PARAM(
 	(BT_LE_ADV_OPT_CONN |
@@ -30,8 +30,6 @@ LOG_MODULE_REGISTER(Lesson4_Exercise1, LOG_LEVEL_INF);
 #define RUN_STATUS_LED DK_LED1
 #define CON_STATUS_LED DK_LED2
 
-/* STEP 8.1 - Specify the LED to control */
-#define USER_LED DK_LED3
 
 /* STEP 9.1 - Specify the button to monitor */
 #define USER_BUTTON DK_BTN1_MSK
