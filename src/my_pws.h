@@ -34,12 +34,12 @@ typedef void (*led_cb_t)(const bool led_state);
 /** @brief Callback type for when the button state is pulled. */
 typedef bool (*button_cb_t)(void);
 
-/** @brief Callback struct used by the LBS Service. */
-struct my_lbs_cb {
-	/** LED state change callback. */
-	led_cb_t led_cb;
-	/** Button read callback. */
-	button_cb_t button_cb;
+/** @brief Callback struct used by the PWS Service. */
+struct my_pws_cb {
+	/** pump state change callback. */
+	pump_cb_t pump_cb;
+	/** temperature read callback. */
+	temperature_cb_t button_cb;
 };
 
 /** @brief Initialize the LBS Service.
