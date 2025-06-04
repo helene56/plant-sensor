@@ -1,16 +1,10 @@
-/*
- * Copyright (c) 2018 Nordic Semiconductor ASA
- *
- * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
- */
-
-#ifndef BT_LBS_H_
-#define BT_LBS_H_
+#ifndef BT_PWS_H_
+#define BT_PWS_H_
 
 /**@file
- * @defgroup bt_lbs LED Button Service API
+ * @defgroup bt_pws Plant Weather Service Service API
  * @{
- * @brief API for the LED Button Service (LBS).
+ * @brief API for the Plant Weather Service (PWS).
  */
 
 #ifdef __cplusplus
@@ -20,19 +14,19 @@ extern "C" {
 #include <zephyr/types.h>
 
 /* STEP 1 - Define the 128 bit UUIDs for the GATT service and its characteristics in */
-/** @brief LBS Service UUID. */
-#define BT_UUID_LBS_VAL BT_UUID_128_ENCODE(0x00001523, 0x1212, 0xefde, 0x1523, 0x785feabcd123)
+/** @brief PWS Service UUID. */
+#define BT_UUID_PWS_VAL BT_UUID_128_ENCODE(0x0f956141, 0x6b9c, 0x4a41, 0xa6df, 0x977ac4b99d78)
 
-/** @brief Button Characteristic UUID. */
-#define BT_UUID_LBS_BUTTON_VAL                                                                     \
-	BT_UUID_128_ENCODE(0x00001524, 0x1212, 0xefde, 0x1523, 0x785feabcd123)
+/** @brief Temperature Characteristic UUID. */
+#define BT_UUID_PWS_TEMPERATURE_VAL                                                                     \
+	BT_UUID_128_ENCODE(0x0f956142, 0x6b9c, 0x4a41, 0xa6df, 0x977ac4b99d78)
 
-/** @brief LED Characteristic UUID. */
-#define BT_UUID_LBS_LED_VAL BT_UUID_128_ENCODE(0x00001525, 0x1212, 0xefde, 0x1523, 0x785feabcd123)
+/** @brief Pump Characteristic UUID. */
+#define BT_UUID_PWS_PUMP_VAL BT_UUID_128_ENCODE(0x0f956143, 0x6b9c, 0x4a41, 0xa6df, 0x977ac4b99d78)
 
-#define BT_UUID_LBS BT_UUID_DECLARE_128(BT_UUID_LBS_VAL)
-#define BT_UUID_LBS_BUTTON BT_UUID_DECLARE_128(BT_UUID_LBS_BUTTON_VAL)
-#define BT_UUID_LBS_LED BT_UUID_DECLARE_128(BT_UUID_LBS_LED_VAL)
+#define BT_UUID_PWS BT_UUID_DECLARE_128(BT_UUID_PWS_VAL)
+#define BT_UUID_PWS_TEMPERATURE BT_UUID_DECLARE_128(BT_UUID_PWS_TEMPERATURE_VAL)
+#define BT_UUID_PWS_PUMP BT_UUID_DECLARE_128(BT_UUID_PWS_PUMP_VAL)
 
 /** @brief Callback type for when an LED state change is received. */
 typedef void (*led_cb_t)(const bool led_state);
@@ -71,4 +65,4 @@ int my_lbs_init(struct my_lbs_cb *callbacks);
  * @}
  */
 
-#endif /* BT_LBS_H_ */
+#endif /* BT_PWS_H_ */
