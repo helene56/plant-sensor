@@ -29,7 +29,7 @@ extern "C" {
 #define BT_UUID_PWS_PUMP BT_UUID_DECLARE_128(BT_UUID_PWS_PUMP_VAL)
 
 /** @brief Callback type for when an pump state change is received. */
-typedef void (*pump_cb_t)(const bool led_state);
+typedef bool (*pump_cb_t)(void);
 
 /** @brief Callback type for when the temperature state is pulled. */
 typedef bool (*temperature_cb_t)(void);

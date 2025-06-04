@@ -47,7 +47,7 @@ static const struct bt_data ad[] = {
 };
 
 static const struct bt_data sd[] = {
-	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_LBS_VAL),
+	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_PWS_VAL),
 };
 
 static void adv_work_handler(struct k_work *work)
@@ -89,11 +89,11 @@ static struct my_pws_cb app_callbacks = {
 	.temperature_cb = app_temperature_cb,
 };
 
-static void button_changed(uint32_t button_state, uint32_t has_changed)
+static void button_changed(uint32_t temperature_state, uint32_t has_changed)
 {
-	if (has_changed & USER_BUTTON) {
-		uint32_t user_button_state = button_state & USER_BUTTON;
-		app_button_state = user_button_state ? true : false;
+	if (has_changed & TEMPERATURE_BUTTON) {
+		uint32_t user_button_state = temperature_state & TEMPERATURE_BUTTON;
+		app_temperature_state = user_button_state ? true : false;
 	}
 }
 static void on_connected(struct bt_conn *conn, uint8_t err)
@@ -160,7 +160,7 @@ int main(void)
 	bt_conn_cb_register(&connection_callbacks);
 
 	/* STEP 11 - Pass your application callback functions stored in app_callbacks to the MY LBS service */
-	err = my_lbs_init(&app_callbacks);
+	err = my_pws_init(&app_callbacks);
 	if (err) {
 		printk("Failed to init LBS (err:%d)\n", err);
 		return -1;
