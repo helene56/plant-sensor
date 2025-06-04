@@ -32,7 +32,8 @@ LOG_MODULE_REGISTER(Lesson4_Exercise1, LOG_LEVEL_INF);
 
 
 /* STEP 9.1 - Specify the button to monitor */
-#define USER_BUTTON DK_BTN1_MSK
+#define TEMPERATURE_BUTTON DK_BTN1_MSK // Should be replaced with a sensor, temp button
+#define PUMP_BUTTON DK_BTN2_MSK // Should be replaced with a pump, temp button
 
 #define RUN_LED_BLINK_INTERVAL 1000
 
