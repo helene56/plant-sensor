@@ -28,11 +28,11 @@ extern "C" {
 #define BT_UUID_PWS_TEMPERATURE BT_UUID_DECLARE_128(BT_UUID_PWS_TEMPERATURE_VAL)
 #define BT_UUID_PWS_PUMP BT_UUID_DECLARE_128(BT_UUID_PWS_PUMP_VAL)
 
-/** @brief Callback type for when an LED state change is received. */
-typedef void (*led_cb_t)(const bool led_state);
+/** @brief Callback type for when an pump state change is received. */
+typedef void (*pump_cb_t)(const bool led_state);
 
-/** @brief Callback type for when the button state is pulled. */
-typedef bool (*button_cb_t)(void);
+/** @brief Callback type for when the temperature state is pulled. */
+typedef bool (*temperature_cb_t)(void);
 
 /** @brief Callback struct used by the PWS Service. */
 struct my_pws_cb {
@@ -42,9 +42,9 @@ struct my_pws_cb {
 	temperature_cb_t button_cb;
 };
 
-/** @brief Initialize the LBS Service.
+/** @brief Initialize the PWS Service.
  *
- * This function registers application callback functions with the My LBS
+ * This function registers application callback functions with the My PWS
  * Service
  *
  * @param[in] callbacks Struct containing pointers to callback functions
@@ -55,7 +55,7 @@ struct my_pws_cb {
  * @retval 0 If the operation was successful.
  *           Otherwise, a (negative) error code is returned.
  */
-int my_lbs_init(struct my_lbs_cb *callbacks);
+int my_pws_init(struct my_pws_cb *callbacks);
 
 #ifdef __cplusplus
 }
