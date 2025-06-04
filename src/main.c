@@ -37,7 +37,8 @@ LOG_MODULE_REGISTER(Lesson4_Exercise1, LOG_LEVEL_INF);
 
 #define RUN_LED_BLINK_INTERVAL 1000
 
-static bool app_button_state;
+static bool app_temperature_state;
+static bool app_pump_state;
 static struct k_work adv_work;
 static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
@@ -70,16 +71,16 @@ static void recycled_cb(void)
 	advertising_start();
 }
 
-/* STEP 8.2 - Define the application callback function for controlling the LED */
-static void app_led_cb(bool led_state)
+
+/* STEP 9.2 - Define the application callback function for reading the state of the temperature */
+static bool app_temperature_cb(void)
 {
-	dk_set_led(USER_LED, led_state);
+	return app_temperature_state;
 }
 
-/* STEP 9.2 - Define the application callback function for reading the state of the button */
-static bool app_button_cb(void)
+static bool app_pump_cb(void)
 {
-	return app_button_state;
+	return app_pump_state;
 }
 
 /* STEP 10 - Declare a varaible app_callbacks of type my_lbs_cb and initiate its members to the applications call back functions we developed in steps 8.2 and 9.2. */
