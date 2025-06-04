@@ -22,14 +22,14 @@
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/bluetooth/gatt.h>
 
-#include "my_lbs.h"
+#include "my_pws.h"
 
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_DECLARE(Lesson4_Exercise1);
 
 static bool button_state;
-static struct my_lbs_cb lbs_cb;
+static struct my_pws_cb pws_cb;
 
 /* STEP 6 - Implement the write callback function of the LED characteristic */
 static ssize_t write_led(struct bt_conn *conn, const struct bt_gatt_attr *attr, const void *buf,
@@ -64,7 +64,7 @@ static ssize_t write_led(struct bt_conn *conn, const struct bt_gatt_attr *attr, 
 }
 
 /* STEP 5 - Implement the read callback function of the Button characteristic */
-static ssize_t read_button(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf,
+static ssize_t read_temperature(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf,
 			   uint16_t len, uint16_t offset)
 {
 	// get a pointer to button_state which is passed in the BT_GATT_CHARACTERISTIC() and stored in attr->user_data
@@ -72,9 +72,9 @@ static ssize_t read_button(struct bt_conn *conn, const struct bt_gatt_attr *attr
 
 	LOG_DBG("Attribute read, handle: %u, conn: %p", attr->handle, (void *)conn);
 
-	if (lbs_cb.button_cb) {
+	if (pws_cb.temperature_cb) {
 		// Call the application callback function to update the get the current value of the button
-		button_state = lbs_cb.button_cb();
+		button_state = pws_cb.button_cb();
 		return bt_gatt_attr_read(conn, attr, buf, len, offset, value, sizeof(*value));
 	}
 
@@ -82,14 +82,14 @@ static ssize_t read_button(struct bt_conn *conn, const struct bt_gatt_attr *attr
 }
 
 /* LED Button Service Declaration */
-/* STEP 2 - Create and add the MY LBS service to the Bluetooth LE stack */
-BT_GATT_SERVICE_DEFINE(my_lbs_svc, BT_GATT_PRIMARY_SERVICE(BT_UUID_LBS),
-		       /* STEP 3 - Create and add the Button characteristic */
-		       BT_GATT_CHARACTERISTIC(BT_UUID_LBS_BUTTON, BT_GATT_CHRC_READ,
-					      BT_GATT_PERM_READ, read_button, NULL, &button_state),
-		       /* STEP 4 - Create and add the LED characteristic. */
-		       BT_GATT_CHARACTERISTIC(BT_UUID_LBS_LED, BT_GATT_CHRC_WRITE,
-					      BT_GATT_PERM_WRITE, NULL, write_led, NULL),
+/* STEP 2 - Create and add the MY PWS service to the Bluetooth LE stack */
+BT_GATT_SERVICE_DEFINE(my_pws_svc, BT_GATT_PRIMARY_SERVICE(BT_UUID_PWS),
+		       /* STEP 3 - Create and add the Temperature characteristic */
+		       BT_GATT_CHARACTERISTIC(BT_UUID_PWS_TEMPERATURE, BT_GATT_CHRC_READ,
+					      BT_GATT_PERM_READ, read_temperature, NULL, &temperature_state),
+		       /* STEP 4 - Create and add the Pump characteristic. */
+		       BT_GATT_CHARACTERISTIC(BT_UUID_PWS_PUMP, BT_GATT_CHRC_READ,
+					      BT_GATT_PERM_READ, NULL, read_pump, &pump_state),
 
 );
 /* A function to register application callbacks for the LED and Button characteristics  */
