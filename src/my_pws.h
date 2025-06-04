@@ -39,7 +39,7 @@ struct my_pws_cb {
 	/** pump state change callback. */
 	pump_cb_t pump_cb;
 	/** temperature read callback. */
-	temperature_cb_t button_cb;
+	temperature_cb_t temperature_cb;
 };
 
 /** @brief Initialize the PWS Service.
