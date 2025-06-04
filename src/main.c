@@ -83,10 +83,10 @@ static bool app_pump_cb(void)
 	return app_pump_state;
 }
 
-/* STEP 10 - Declare a varaible app_callbacks of type my_lbs_cb and initiate its members to the applications call back functions we developed in steps 8.2 and 9.2. */
-static struct my_lbs_cb app_callbacks = {
-	.led_cb = app_led_cb,
-	.button_cb = app_button_cb,
+/* STEP 10 - Declare a varaible app_callbacks of type my_pws_cb and initiate its members to the applications call back functions we developed in steps 8.2 and 9.2. */
+static struct my_pws_cb app_callbacks = {
+	.pump_cb = app_pump_cb,
+	.temperature_cb = app_temperature_cb,
 };
 
 static void button_changed(uint32_t button_state, uint32_t has_changed)
