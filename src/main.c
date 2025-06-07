@@ -30,14 +30,16 @@ LOG_MODULE_REGISTER(Lesson4_Exercise1, LOG_LEVEL_INF);
 #define RUN_STATUS_LED DK_LED1
 #define CON_STATUS_LED DK_LED2
 
-
+#define STACKSIZE 1024
+#define PRIORITY 7
 /* STEP 9.1 - Specify the button to monitor */
 #define TEMPERATURE_BUTTON DK_BTN1_MSK // Should be replaced with a sensor, temp button
 #define PUMP_BUTTON DK_BTN2_MSK // Should be replaced with a pump, temp button
 
 #define RUN_LED_BLINK_INTERVAL 1000
-
-static bool app_temperature_state;
+#define NOTIFY_INTERVAL        500
+// static int app_temperature_state = 21;
+static uint32_t app_temperature_value = 5;
 static bool app_pump_state;
 static struct k_work adv_work;
 static const struct bt_data ad[] = {
@@ -73,10 +75,19 @@ static void recycled_cb(void)
 
 
 /* STEP 9.2 - Define the application callback function for reading the state of the temperature */
-static bool app_temperature_cb(void)
+// static int app_temperature_cb(void)
+// {
+// 	return app_temperature_state;
+// }
+
+static void simulate_data(void)
 {
-	return app_temperature_state;
+	app_temperature_value++;
+	if (app_temperature_value == 20) {
+		app_temperature_value = 5;
+	}
 }
+
 
 static bool app_pump_cb(void)
 {
@@ -86,16 +97,35 @@ static bool app_pump_cb(void)
 /* STEP 10 - Declare a varaible app_callbacks of type my_pws_cb and initiate its members to the applications call back functions we developed in steps 8.2 and 9.2. */
 static struct my_pws_cb app_callbacks = {
 	.pump_cb = app_pump_cb,
-	.temperature_cb = app_temperature_cb,
+	// .temperature_cb = app_temperature_cb,
 };
 
-static void button_changed(uint32_t temperature_state, uint32_t has_changed)
+static void button_changed(uint32_t button_state, uint32_t has_changed)
 {
 	if (has_changed & TEMPERATURE_BUTTON) {
-		uint32_t user_button_state = temperature_state & TEMPERATURE_BUTTON;
-		app_temperature_state = user_button_state ? true : false;
+		uint32_t user_button_state = button_state & TEMPERATURE_BUTTON;
+		// app_temperature_state = user_button_state ? true : false;
+		// if (user_button_state) // if pressed
+		// {
+		// 	app_temperature_state++;
+		// 	LOG_INF("temperature value: %d\n", app_temperature_state);
+
+		// }
 	}
 }
+
+void send_data_thread(void)
+{
+	while(1){
+		/* Simulate data */
+		simulate_data();
+		/* Send notification, the function sends notifications only if a client is subscribed */
+		my_pws_send_sensor_notify(app_temperature_value); 
+		k_sleep(K_MSEC(NOTIFY_INTERVAL));
+	} 
+}
+
+
 static void on_connected(struct bt_conn *conn, uint8_t err)
 {
 	if (err) {
@@ -159,7 +189,7 @@ int main(void)
 	}
 	bt_conn_cb_register(&connection_callbacks);
 
-	/* STEP 11 - Pass your application callback functions stored in app_callbacks to the MY LBS service */
+	/* STEP 11 - Pass your application callback functions stored in app_callbacks to the MY PWS service */
 	err = my_pws_init(&app_callbacks);
 	if (err) {
 		printk("Failed to init LBS (err:%d)\n", err);
@@ -175,3 +205,6 @@ int main(void)
 		k_sleep(K_MSEC(RUN_LED_BLINK_INTERVAL));
 	}
 }
+
+K_THREAD_DEFINE(send_data_thread_id, STACKSIZE, send_data_thread, NULL, NULL,
+ NULL, PRIORITY, 0, 0);

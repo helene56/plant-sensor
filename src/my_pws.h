@@ -32,7 +32,7 @@ extern "C" {
 typedef bool (*pump_cb_t)(void);
 
 /** @brief Callback type for when the temperature state is pulled. */
-typedef bool (*temperature_cb_t)(void);
+typedef int (*temperature_cb_t)(void);
 
 /** @brief Callback struct used by the PWS Service. */
 struct my_pws_cb {
@@ -56,6 +56,18 @@ struct my_pws_cb {
  *           Otherwise, a (negative) error code is returned.
  */
 int my_pws_init(struct my_pws_cb *callbacks);
+
+/** @brief Send the sensor value as notification.
+ *
+ * This function sends an uint32_t  value, typically the value
+ * of a simulated sensor to all connected peers.
+ *
+ * @param[in] sensor_value The value of the simulated sensor.
+ *
+ * @retval 0 If the operation was successful.
+ *           Otherwise, a (negative) error code is returned.
+ */
+int my_pws_send_sensor_notify(uint32_t sensor_value);
 
 #ifdef __cplusplus
 }
