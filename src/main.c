@@ -103,7 +103,7 @@ static struct my_pws_cb app_callbacks = {
 static void button_changed(uint32_t button_state, uint32_t has_changed)
 {
 	if (has_changed & TEMPERATURE_BUTTON) {
-		uint32_t user_button_state = button_state & TEMPERATURE_BUTTON;
+		// uint32_t user_button_state = button_state & TEMPERATURE_BUTTON;
 		// app_temperature_state = user_button_state ? true : false;
 		// if (user_button_state) // if pressed
 		// {

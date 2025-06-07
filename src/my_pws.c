@@ -103,7 +103,7 @@ int my_pws_send_sensor_notify(uint32_t sensor_value)
 	if (!notify_mysensor_enabled) {
 	return -EACCES;
 	}  
-	return bt_gatt_notify(NULL, &my_pws_svc.attrs[5], 
+	return bt_gatt_notify(NULL, &my_pws_svc.attrs[4], 
 	&sensor_value,
 	sizeof(sensor_value));
 }
