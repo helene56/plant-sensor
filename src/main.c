@@ -88,6 +88,22 @@ static void simulate_data(void)
 }
 
 
+bool simulate_rain_drop_sensor()
+{
+    // should replace with real sensor at some point
+    uint64_t elapsed_ms = k_uptime_get() - start_time;
+    if (elapsed_ms >= 20000)
+    {
+        printk("raindrop detected\n");
+        return true;
+    }
+    return false;
+        
+    
+    
+}
+
+
 static void simulate_output_water(void)
 {
     while(1)
@@ -96,20 +112,21 @@ static void simulate_output_water(void)
         {
             // means the soil capacitor sensor said - soil is dry!
             // keep pump on until signal back from rain drop sensor at bottom of pot
-            // for now button click is rain drop sensor telling it to turn off
             // add failsafe maybe after 1 min. it should turn off..
-            uint64_t elapsed_ms = k_uptime_get() - start_time;
-            if (elapsed_ms >= 60000)
+            int64_t elapsed_ms = k_uptime_get() - start_time;
+            if (simulate_rain_drop_sensor() || elapsed_ms >= 60000)
             {
                 start_time = k_uptime_get();
                 pumping_state = !pumping_state;
             }
-
+           
         }
         k_sleep(K_MSEC(TURN_MOTOR_OFF_INTERVAL));
     }
 	
 }
+
+
 
 static bool app_pump_cb(void)
 {
