@@ -16,11 +16,11 @@
 #include "my_pws.h"
 
 static const struct bt_le_adv_param *adv_param = BT_LE_ADV_PARAM(
-	(BT_LE_ADV_OPT_CONN |
-	 BT_LE_ADV_OPT_USE_IDENTITY), /* Connectable advertising and use identity address */
-	800, /* Min Advertising Interval 500ms (800*0.625ms) */
-	801, /* Max Advertising Interval 500.625ms (801*0.625ms) */
-	NULL); /* Set to NULL for undirected advertising */
+    (BT_LE_ADV_OPT_CONN |
+     BT_LE_ADV_OPT_USE_IDENTITY), /* Connectable advertising and use identity address */
+    800, /* Min Advertising Interval 500ms (800*0.625ms) */
+    801, /* Max Advertising Interval 500.625ms (801*0.625ms) */
+    NULL); /* Set to NULL for undirected advertising */
 
 LOG_MODULE_REGISTER(Lesson4_Exercise1, LOG_LEVEL_INF);
 
@@ -36,175 +36,215 @@ LOG_MODULE_REGISTER(Lesson4_Exercise1, LOG_LEVEL_INF);
 #define TEMPERATURE_BUTTON DK_BTN1_MSK // Should be replaced with a sensor, temp button
 #define PUMP_BUTTON DK_BTN2_MSK // Should be replaced with a pump, temp button
 
-#define RUN_LED_BLINK_INTERVAL 1000
-#define NOTIFY_INTERVAL        500
-// static int app_temperature_state = 21;
+#define RUN_LED_BLINK_INTERVAL   1000
+#define NOTIFY_INTERVAL          1500
+#define TURN_MOTOR_OFF_INTERVAL  500
+
+static uint64_t start_time;  // Stores connection start timestamp
+
 static uint32_t app_temperature_value = 5;
 static bool app_pump_state;
+static bool pumping_state;
 static struct k_work adv_work;
 static const struct bt_data ad[] = {
-	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
-	BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
+    BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
+    BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
 
 };
 
 static const struct bt_data sd[] = {
-	BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_PWS_VAL),
+    BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_PWS_VAL),
 };
 
 static void adv_work_handler(struct k_work *work)
 {
-	int err = bt_le_adv_start(adv_param, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
+    int err = bt_le_adv_start(adv_param, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
 
-	if (err) {
-		printk("Advertising failed to start (err %d)\n", err);
-		return;
-	}
+    if (err) {
+        printk("Advertising failed to start (err %d)\n", err);
+        return;
+    }
 
-	printk("Advertising successfully started\n");
+    printk("Advertising successfully started\n");
 }
 static void advertising_start(void)
 {
-	k_work_submit(&adv_work);
+    k_work_submit(&adv_work);
 }
 static void recycled_cb(void)
 {
-	printk("Connection object available from previous conn. Disconnect is complete!\n");
-	advertising_start();
+    printk("Connection object available from previous conn. Disconnect is complete!\n");
+    advertising_start();
 }
 
-
-/* STEP 9.2 - Define the application callback function for reading the state of the temperature */
-// static int app_temperature_cb(void)
-// {
-// 	return app_temperature_state;
-// }
 
 static void simulate_data(void)
 {
-	app_temperature_value++;
-	if (app_temperature_value == 20) {
-		app_temperature_value = 5;
-	}
+    app_temperature_value++;
+    if (app_temperature_value == 20) 
+    {
+        app_temperature_value = 5;
+    }
 }
 
 
+static void simulate_output_water(void)
+{
+    while(1)
+    {
+        if (pumping_state)
+        {
+            // means the soil capacitor sensor said - soil is dry!
+            // keep pump on until signal back from rain drop sensor at bottom of pot
+            // for now button click is rain drop sensor telling it to turn off
+            // add failsafe maybe after 1 min. it should turn off..
+            uint64_t elapsed_ms = k_uptime_get() - start_time;
+            if (elapsed_ms >= 60000)
+            {
+                start_time = k_uptime_get();
+                pumping_state = !pumping_state;
+            }
+
+        }
+        k_sleep(K_MSEC(TURN_MOTOR_OFF_INTERVAL));
+    }
+	
+}
+
 static bool app_pump_cb(void)
 {
-	return app_pump_state;
+    return pumping_state;
 }
 
 /* STEP 10 - Declare a varaible app_callbacks of type my_pws_cb and initiate its members to the applications call back functions we developed in steps 8.2 and 9.2. */
 static struct my_pws_cb app_callbacks = {
-	.pump_cb = app_pump_cb,
-	// .temperature_cb = app_temperature_cb,
+    .pump_cb = app_pump_cb,
+    // .temperature_cb = app_temperature_cb,
 };
 
 static void button_changed(uint32_t button_state, uint32_t has_changed)
 {
-	if (has_changed & TEMPERATURE_BUTTON) {
-		// uint32_t user_button_state = button_state & TEMPERATURE_BUTTON;
-		// app_temperature_state = user_button_state ? true : false;
-		// if (user_button_state) // if pressed
-		// {
-		// 	app_temperature_state++;
-		// 	LOG_INF("temperature value: %d\n", app_temperature_state);
+    if (has_changed & PUMP_BUTTON) {
+        uint32_t user_button_state = button_state & PUMP_BUTTON;
+        app_pump_state = user_button_state ? true : false;
+        if (app_pump_state)
+        {
+            // if button clicked, turn pump on, and again turn off
+            pumping_state = !pumping_state;
+            if (pumping_state) start_time = k_uptime_get();
+        }
+        
+    }
+}
 
-		// }
-	}
+void send_debug_statement(void)
+{
+    while(1)
+    {
+        printk("pumping_state state: %d\n", pumping_state);
+        k_sleep(K_MSEC(1500));
+    }
+     
 }
 
 void send_data_thread(void)
 {
-	while(1){
-		/* Simulate data */
-		simulate_data();
-		/* Send notification, the function sends notifications only if a client is subscribed */
-		my_pws_send_sensor_notify(app_temperature_value); 
-		k_sleep(K_MSEC(NOTIFY_INTERVAL));
-	} 
+    while(1){
+        /* Simulate data */
+        simulate_data();
+        /* Send notification, the function sends notifications only if a client is subscribed */
+        my_pws_send_sensor_notify(app_temperature_value); 
+        k_sleep(K_MSEC(NOTIFY_INTERVAL));
+
+    } 
 }
 
 
 static void on_connected(struct bt_conn *conn, uint8_t err)
 {
-	if (err) {
-		printk("Connection failed (err %u)\n", err);
-		return;
-	}
+    if (err) {
+        printk("Connection failed (err %u)\n", err);
+        return;
+    }
 
-	printk("Connected\n");
+    printk("Connected\n");
 
-	dk_set_led_on(CON_STATUS_LED);
+    dk_set_led_on(CON_STATUS_LED);
 }
 
 static void on_disconnected(struct bt_conn *conn, uint8_t reason)
 {
-	printk("Disconnected (reason %u)\n", reason);
+    printk("Disconnected (reason %u)\n", reason);
 
-	dk_set_led_off(CON_STATUS_LED);
+    dk_set_led_off(CON_STATUS_LED);
 }
 
 struct bt_conn_cb connection_callbacks = {
-	.connected = on_connected,
-	.disconnected = on_disconnected,
-	.recycled = recycled_cb,
+    .connected = on_connected,
+    .disconnected = on_disconnected,
+    .recycled = recycled_cb,
 };
 
 static int init_button(void)
 {
-	int err;
+    int err;
 
-	err = dk_buttons_init(button_changed);
-	if (err) {
-		printk("Cannot init buttons (err: %d)\n", err);
-	}
+    err = dk_buttons_init(button_changed);
+    if (err) {
+        printk("Cannot init buttons (err: %d)\n", err);
+    }
 
-	return err;
+    return err;
 }
 
 int main(void)
 {
-	int blink_status = 0;
-	int err;
+    int blink_status = 0;
+    int err;
 
-	LOG_INF("Starting Lesson 4 - Exercise 1 \n");
+    LOG_INF("Starting Lesson 4 - Exercise 1 \n");
 
-	err = dk_leds_init();
-	if (err) {
-		LOG_ERR("LEDs init failed (err %d)\n", err);
-		return -1;
-	}
+    err = dk_leds_init();
+    if (err) {
+        LOG_ERR("LEDs init failed (err %d)\n", err);
+        return -1;
+    }
 
-	err = init_button();
-	if (err) {
-		printk("Button init failed (err %d)\n", err);
-		return -1;
-	}
+    err = init_button();
+    if (err) {
+        printk("Button init failed (err %d)\n", err);
+        return -1;
+    }
 
-	err = bt_enable(NULL);
-	if (err) {
-		LOG_ERR("Bluetooth init failed (err %d)\n", err);
-		return -1;
-	}
-	bt_conn_cb_register(&connection_callbacks);
+    err = bt_enable(NULL);
+    if (err) {
+        LOG_ERR("Bluetooth init failed (err %d)\n", err);
+        return -1;
+    }
+    bt_conn_cb_register(&connection_callbacks);
 
-	/* STEP 11 - Pass your application callback functions stored in app_callbacks to the MY PWS service */
-	err = my_pws_init(&app_callbacks);
-	if (err) {
-		printk("Failed to init LBS (err:%d)\n", err);
-		return -1;
-	}
-	LOG_INF("Bluetooth initialized\n");
-	k_work_init(&adv_work, adv_work_handler);
-	advertising_start();
+    /* STEP 11 - Pass your application callback functions stored in app_callbacks to the MY PWS service */
+    err = my_pws_init(&app_callbacks);
+    if (err) {
+        printk("Failed to init LBS (err:%d)\n", err);
+        return -1;
+    }
+    LOG_INF("Bluetooth initialized\n");
+    k_work_init(&adv_work, adv_work_handler);
+    advertising_start();
 
 
-	for (;;) {
-		dk_set_led(RUN_STATUS_LED, (++blink_status) % 2);
-		k_sleep(K_MSEC(RUN_LED_BLINK_INTERVAL));
-	}
+    for (;;) {
+        dk_set_led(RUN_STATUS_LED, (++blink_status) % 2);
+        k_sleep(K_MSEC(RUN_LED_BLINK_INTERVAL));
+    }
 }
 
 K_THREAD_DEFINE(send_data_thread_id, STACKSIZE, send_data_thread, NULL, NULL,
  NULL, PRIORITY, 0, 0);
+
+K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, send_debug_statement, NULL, NULL,
+ NULL, 8, 0, 0);
+
+K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, simulate_output_water, NULL, NULL,
+NULL, 8, 0, 0); 
