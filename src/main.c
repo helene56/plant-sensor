@@ -22,7 +22,7 @@ static const struct bt_le_adv_param *adv_param = BT_LE_ADV_PARAM(
     801, /* Max Advertising Interval 500.625ms (801*0.625ms) */
     NULL); /* Set to NULL for undirected advertising */
 
-LOG_MODULE_REGISTER(Lesson4_Exercise1, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(Plant_sensor, LOG_LEVEL_INF);
 
 #define DEVICE_NAME CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
@@ -39,12 +39,21 @@ LOG_MODULE_REGISTER(Lesson4_Exercise1, LOG_LEVEL_INF);
 #define RUN_LED_BLINK_INTERVAL   1000
 #define NOTIFY_INTERVAL          1500
 #define TURN_MOTOR_OFF_INTERVAL  500
+#define PUMP_ON_ARRAY_SIZE       5
 
 static uint64_t start_time;  // Stores connection start timestamp
 
 static uint32_t app_temperature_value = 5;
 static bool app_pump_state;
 static bool pumping_state;
+
+static uint32_t pumping_on_arr[PUMP_ON_ARRAY_SIZE] = {0};
+static uint32_t pumping_timestamp_arr[PUMP_ON_ARRAY_SIZE] = {0};
+static uint32_t *pump_ptr = pumping_on_arr;
+static uint32_t *pump_end = pumping_on_arr + PUMP_ON_ARRAY_SIZE;
+static uint32_t *timestamp_ptr = pumping_timestamp_arr;
+// static uint32_t *timestamp_end = pumping_timestamp_arr + PUMP_ON_ARRAY_SIZE;
+
 static struct k_work adv_work;
 static const struct bt_data ad[] = {
     BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
@@ -118,6 +127,33 @@ static void simulate_output_water(void)
             {
                 start_time = k_uptime_get();
                 pumping_state = !pumping_state;
+
+                // set value in pumping array to the elapsed ms
+                if (pump_ptr < pump_end)
+                {
+                    *pump_ptr = (uint32_t)elapsed_ms;
+                    *timestamp_ptr = (uint32_t)k_uptime_get();
+
+                    ++pump_ptr;
+                    ++timestamp_ptr;
+                }
+                else
+                {
+                    // reinitialize array
+                    memset(pumping_on_arr, 0, sizeof(pumping_on_arr));
+                    memset(pumping_timestamp_arr, 0, sizeof(pumping_timestamp_arr));
+                    // set pointers back
+                    pump_ptr = pumping_on_arr;
+                    timestamp_ptr = pumping_timestamp_arr;
+
+                }
+                
+                
+
+                // LOG_INF("Printing uptime:\n");
+                // LOG_INF("milliseconds: %lld", k_uptime_get());
+                
+
             }
            
         }
@@ -128,9 +164,13 @@ static void simulate_output_water(void)
 
 
 
-static bool app_pump_cb(void)
+static uint32_t *app_pump_cb(void)
 {
-    return pumping_state;
+    // TODO:
+    // 1 make an array to store how long the pump stayed on, set max size of 5 
+    // 2 if no more space in array, reset (move pointer back and set all values to 0)
+    // 3 update functions to send uint32_t values
+    return pumping_on_arr;
 }
 
 /* STEP 10 - Declare a varaible app_callbacks of type my_pws_cb and initiate its members to the applications call back functions we developed in steps 8.2 and 9.2. */
