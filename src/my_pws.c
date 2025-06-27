@@ -21,10 +21,11 @@
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_DECLARE(Lesson4_Exercise1);
-
+#define PUMP_ON_ARRAY_SIZE       5
 static bool notify_mysensor_enabled;
 // static int temperature_state;
-static bool pump_state;
+
+static uint32_t pumping_on_arr[PUMP_ON_ARRAY_SIZE];
 static struct my_pws_cb pws_cb;
 
 static void mylbsbc_ccc_mysensor_cfg_changed(const struct bt_gatt_attr *attr,
@@ -55,14 +56,16 @@ static ssize_t read_pump(struct bt_conn *conn, const struct bt_gatt_attr *attr, 
 			   uint16_t len, uint16_t offset)
 {
 	// get a pointer to pump_state which is passed in the BT_GATT_CHARACTERISTIC() and stored in attr->user_data
-	const char *value = attr->user_data;
+	const uint32_t *value = (const uint32_t *)attr->user_data;
 
 	LOG_DBG("Attribute read, handle: %u, conn: %p", attr->handle, (void *)conn);
 
 	if (pws_cb.pump_cb) {
 		// Call the application callback function to update the get the current value of the pump
-		pump_state = pws_cb.pump_cb();
-		return bt_gatt_attr_read(conn, attr, buf, len, offset, value, sizeof(*value));
+		const uint32_t *pump_values = pws_cb.pump_cb();
+		// Copy values if needed:
+		memcpy(pumping_on_arr, pump_values, sizeof(pumping_on_arr));
+		return bt_gatt_attr_read(conn, attr, buf, len, offset, value, sizeof(pumping_on_arr));
 	}
 
 	return 0;
@@ -76,7 +79,7 @@ BT_GATT_SERVICE_DEFINE(my_pws_svc, BT_GATT_PRIMARY_SERVICE(BT_UUID_PWS),
 			// 		      BT_GATT_PERM_READ, read_temperature, NULL, &temperature_state),
 		       /* STEP 4 - Create and add the Pump characteristic. */
 		       BT_GATT_CHARACTERISTIC(BT_UUID_PWS_PUMP, BT_GATT_CHRC_READ,
-					      BT_GATT_PERM_READ, read_pump, NULL, &pump_state),
+					      BT_GATT_PERM_READ, read_pump, NULL, pumping_on_arr),
 
 				BT_GATT_CHARACTERISTIC(BT_UUID_PWS_TEMPERATURE,
 				BT_GATT_CHRC_NOTIFY,
