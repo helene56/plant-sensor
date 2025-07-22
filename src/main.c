@@ -19,9 +19,9 @@
 static const struct bt_le_adv_param *adv_param = BT_LE_ADV_PARAM(
     (BT_LE_ADV_OPT_CONN |
      BT_LE_ADV_OPT_USE_IDENTITY), /* Connectable advertising and use identity address */
-    800, /* Min Advertising Interval 500ms (800*0.625ms) */
-    801, /* Max Advertising Interval 500.625ms (801*0.625ms) */
-    NULL); /* Set to NULL for undirected advertising */
+    800,                          /* Min Advertising Interval 500ms (800*0.625ms) */
+    801,                          /* Max Advertising Interval 500.625ms (801*0.625ms) */
+    NULL);                        /* Set to NULL for undirected advertising */
 
 LOG_MODULE_REGISTER(Plant_sensor, LOG_LEVEL_INF);
 
@@ -35,20 +35,20 @@ LOG_MODULE_REGISTER(Plant_sensor, LOG_LEVEL_INF);
 #define PRIORITY 7
 /* STEP 9.1 - Specify the button to monitor */
 #define TEMPERATURE_BUTTON DK_BTN1_MSK // Should be replaced with a sensor, temp button
-#define PUMP_BUTTON DK_BTN2_MSK // Should be replaced with a pump, temp button
+#define PUMP_BUTTON DK_BTN2_MSK        // Should be replaced with a pump, temp button
 
-#define RUN_LED_BLINK_INTERVAL   1000
-#define NOTIFY_INTERVAL          1500
-#define TURN_MOTOR_OFF_INTERVAL  500
-#define PUMP_ON_ARRAY_SIZE       5
+#define RUN_LED_BLINK_INTERVAL 1000
+#define NOTIFY_INTERVAL 5 * 1000 // dont read too often, to avoid sensor from heating it self up
+#define TURN_MOTOR_OFF_INTERVAL 500
+#define PUMP_ON_ARRAY_SIZE 5
 
-static uint64_t start_time;  // Stores connection start timestamp
+static uint64_t start_time; // Stores connection start timestamp
 
-static uint32_t app_temperature_value = 5;
+// static uint32_t app_temperature_value = 5;
 static bool app_pump_state;
 static bool pumping_state;
 static uint16_t sensor_value_holder[2] = {0};
-
+static bool read_from_sensor = false;
 
 static uint32_t pumping_on_arr[PUMP_ON_ARRAY_SIZE] = {0};
 static uint32_t pumping_timestamp_arr[PUMP_ON_ARRAY_SIZE] = {0};
@@ -72,7 +72,8 @@ static void adv_work_handler(struct k_work *work)
 {
     int err = bt_le_adv_start(adv_param, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
 
-    if (err) {
+    if (err)
+    {
         printk("Advertising failed to start (err %d)\n", err);
         return;
     }
@@ -89,16 +90,14 @@ static void recycled_cb(void)
     advertising_start();
 }
 
-
-static void simulate_data(void)
-{
-    app_temperature_value++;
-    if (app_temperature_value == 20) 
-    {
-        app_temperature_value = 5;
-    }
-}
-
+// static void simulate_data(void)
+// {
+//     app_temperature_value++;
+//     if (app_temperature_value == 20)
+//     {
+//         app_temperature_value = 5;
+//     }
+// }
 
 bool simulate_rain_drop_sensor()
 {
@@ -110,15 +109,11 @@ bool simulate_rain_drop_sensor()
         return true;
     }
     return false;
-        
-    
-    
 }
-
 
 static void simulate_output_water(void)
 {
-    while(1)
+    while (1)
     {
         if (pumping_state)
         {
@@ -148,89 +143,87 @@ static void simulate_output_water(void)
                     // set pointers back
                     pump_ptr = pumping_on_arr;
                     timestamp_ptr = pumping_timestamp_arr;
-
                 }
-                
-                
 
                 // LOG_INF("Printing uptime:\n");
                 // LOG_INF("milliseconds: %lld", k_uptime_get());
-                
-
             }
-           
         }
         k_sleep(K_MSEC(TURN_MOTOR_OFF_INTERVAL));
     }
-	
 }
-
-
 
 static uint32_t *app_pump_cb(void)
 {
     // TODO:
-    // 1 make an array to store how long the pump stayed on, set max size of 5 
+    // 1 make an array to store how long the pump stayed on, set max size of 5
     // 2 if no more space in array, reset (move pointer back and set all values to 0)
     // 3 update functions to send uint32_t values
     return pumping_on_arr;
 }
 
+static void app_sensor_command_cb(bool state)
+{
+    read_from_sensor = state;
+}
+
 /* STEP 10 - Declare a varaible app_callbacks of type my_pws_cb and initiate its members to the applications call back functions we developed in steps 8.2 and 9.2. */
 static struct my_pws_cb app_callbacks = {
     .pump_cb = app_pump_cb,
-    // .temperature_cb = app_temperature_cb,
+    .sensor_command_cb = app_sensor_command_cb,
 };
 
 static void button_changed(uint32_t button_state, uint32_t has_changed)
 {
-    if (has_changed & PUMP_BUTTON) {
+    if (has_changed & PUMP_BUTTON)
+    {
         uint32_t user_button_state = button_state & PUMP_BUTTON;
         app_pump_state = user_button_state ? true : false;
         if (app_pump_state)
         {
             // if button clicked, turn pump on, and again turn off
             pumping_state = !pumping_state;
-            if (pumping_state) start_time = k_uptime_get();
+            if (pumping_state)
+                start_time = k_uptime_get();
         }
-        
     }
 }
 
 void send_debug_statement(void)
 {
-    while(1)
+    while (1)
     {
         printk("pumping_state state: %d\n", pumping_state);
         k_sleep(K_MSEC(1500));
     }
-     
 }
 
 void send_data_thread(void)
 {
-    while(1){
-        /* Simulate data */
-        
-        simulate_data();
-        // replace simulate data with actual readings
-        struct air_metrics env_readings = read_temp_humidity();
-        // send notification for temp/humidity
-        sensor_value_holder[0] = env_readings.temp;
-        sensor_value_holder[1] = env_readings.humidity;
-        my_pws_send_sensor_notify(sensor_value_holder);
-        // my_pws_send_sensor_notify(env_readings.humidity);
-        /* Send notification, the function sends notifications only if a client is subscribed */
-        // my_pws_send_sensor_notify(app_temperature_value);
-        k_sleep(K_MSEC(NOTIFY_INTERVAL));
+    while (1)
+    {
+        if (read_from_sensor)
+        {
+            /* Send notification, the function sends notifications only if a client is subscribed */
+            struct air_metrics env_readings = read_temp_humidity();
+            // send notification for temp/humidity
+            sensor_value_holder[0] = env_readings.temp;
+            sensor_value_holder[1] = env_readings.humidity;
+            my_pws_send_sensor_notify(sensor_value_holder);
 
-    } 
+            k_sleep(K_MSEC(NOTIFY_INTERVAL));
+        }
+        else
+        {
+            k_yield();
+        }
+    }
 }
-
 
 static void on_connected(struct bt_conn *conn, uint8_t err)
 {
-    if (err) {
+    if (err)
+    {
         printk("Connection failed (err %u)\n", err);
         return;
     }
@@ -258,7 +251,8 @@ static int init_button(void)
     int err;
 
     err = dk_buttons_init(button_changed);
-    if (err) {
+    if (err)
+    {
         printk("Cannot init buttons (err: %d)\n", err);
     }
 
@@ -273,19 +267,22 @@ int main(void)
     LOG_INF("Starting Lesson 4 - Exercise 1 \n");
 
     err = dk_leds_init();
-    if (err) {
+    if (err)
+    {
         LOG_ERR("LEDs init failed (err %d)\n", err);
         return -1;
     }
 
     err = init_button();
-    if (err) {
+    if (err)
+    {
         printk("Button init failed (err %d)\n", err);
         return -1;
     }
 
     err = bt_enable(NULL);
-    if (err) {
+    if (err)
+    {
         LOG_ERR("Bluetooth init failed (err %d)\n", err);
         return -1;
     }
@@ -293,7 +290,8 @@ int main(void)
 
     /* STEP 11 - Pass your application callback functions stored in app_callbacks to the MY PWS service */
     err = my_pws_init(&app_callbacks);
-    if (err) {
+    if (err)
+    {
         printk("Failed to init LBS (err:%d)\n", err);
         return -1;
     }
@@ -301,18 +299,18 @@ int main(void)
     k_work_init(&adv_work, adv_work_handler);
     advertising_start();
 
-
-    for (;;) {
+    for (;;)
+    {
         dk_set_led(RUN_STATUS_LED, (++blink_status) % 2);
         k_sleep(K_MSEC(RUN_LED_BLINK_INTERVAL));
     }
 }
 
 K_THREAD_DEFINE(send_data_thread_id, STACKSIZE, send_data_thread, NULL, NULL,
- NULL, PRIORITY, 0, 0);
+                NULL, PRIORITY, 0, 0);
 
 // K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, send_debug_statement, NULL, NULL,
 //  NULL, 8, 0, 0);
 
 K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, simulate_output_water, NULL, NULL,
-NULL, 8, 0, 0); 
+                NULL, 8, 0, 0);
