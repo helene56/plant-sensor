@@ -14,6 +14,7 @@
 #include <dk_buttons_and_leds.h>
 /* STEP 7 - Include the header file of MY LBS customer service */
 #include "my_pws.h"
+#include "dht_sensor.h"
 
 static const struct bt_le_adv_param *adv_param = BT_LE_ADV_PARAM(
     (BT_LE_ADV_OPT_CONN |
@@ -46,6 +47,8 @@ static uint64_t start_time;  // Stores connection start timestamp
 static uint32_t app_temperature_value = 5;
 static bool app_pump_state;
 static bool pumping_state;
+static uint16_t sensor_value_holder[2] = {0};
+
 
 static uint32_t pumping_on_arr[PUMP_ON_ARRAY_SIZE] = {0};
 static uint32_t pumping_timestamp_arr[PUMP_ON_ARRAY_SIZE] = {0};
@@ -208,9 +211,17 @@ void send_data_thread(void)
 {
     while(1){
         /* Simulate data */
+        
         simulate_data();
+        // replace simulate data with actual readings
+        struct air_metrics env_readings = read_temp_humidity();
+        // send notification for temp/humidity
+        sensor_value_holder[0] = env_readings.temp;
+        sensor_value_holder[1] = env_readings.humidity;
+        my_pws_send_sensor_notify(sensor_value_holder);
+        // my_pws_send_sensor_notify(env_readings.humidity);
         /* Send notification, the function sends notifications only if a client is subscribed */
-        my_pws_send_sensor_notify(app_temperature_value); 
+        // my_pws_send_sensor_notify(app_temperature_value);
         k_sleep(K_MSEC(NOTIFY_INTERVAL));
 
     } 
@@ -300,8 +311,8 @@ int main(void)
 K_THREAD_DEFINE(send_data_thread_id, STACKSIZE, send_data_thread, NULL, NULL,
  NULL, PRIORITY, 0, 0);
 
-K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, send_debug_statement, NULL, NULL,
- NULL, 8, 0, 0);
+// K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, send_debug_statement, NULL, NULL,
+//  NULL, 8, 0, 0);
 
 K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, simulate_output_water, NULL, NULL,
 NULL, 8, 0, 0); 

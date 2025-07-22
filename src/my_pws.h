@@ -59,7 +59,7 @@ int my_pws_init(struct my_pws_cb *callbacks);
 
 /** @brief Send the sensor value as notification.
  *
- * This function sends an uint32_t  value, typically the value
+ * This function sends an uint16_t  value, typically the value
  * of a simulated sensor to all connected peers.
  *
  * @param[in] sensor_value The value of the simulated sensor.
@@ -67,7 +67,7 @@ int my_pws_init(struct my_pws_cb *callbacks);
  * @retval 0 If the operation was successful.
  *           Otherwise, a (negative) error code is returned.
  */
-int my_pws_send_sensor_notify(uint32_t sensor_value);
+int my_pws_send_sensor_notify(uint16_t *sensor_value);
 
 #ifdef __cplusplus
 }

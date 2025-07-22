@@ -22,6 +22,7 @@
 
 LOG_MODULE_DECLARE(Lesson4_Exercise1);
 #define PUMP_ON_ARRAY_SIZE       5
+#define SENSOR_ARRAY_SIZE 2
 static bool notify_mysensor_enabled;
 // static int temperature_state;
 
@@ -101,12 +102,12 @@ int my_pws_init(struct my_pws_cb *callbacks)
 	return 0;
 }
 
-int my_pws_send_sensor_notify(uint32_t sensor_value)
+int my_pws_send_sensor_notify(uint16_t *sensor_value)
 {
 	if (!notify_mysensor_enabled) {
 	return -EACCES;
 	}  
 	return bt_gatt_notify(NULL, &my_pws_svc.attrs[4], 
-	&sensor_value,
-	sizeof(sensor_value));
+	sensor_value,
+	SENSOR_ARRAY_SIZE * sizeof(uint16_t));
 }
