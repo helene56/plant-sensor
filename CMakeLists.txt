@@ -12,6 +12,7 @@ project(NONE)
 target_sources(app PRIVATE
   src/main.c
   src/my_pws.c
+  src/dht_sensor.c
 )
 
 # NORDIC SDK APP END
