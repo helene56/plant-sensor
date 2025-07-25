@@ -17,12 +17,12 @@
 #include <zephyr/bluetooth/gatt.h>
 
 #include "my_pws.h"
+#include "sensor_config.h"
 
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_DECLARE(Lesson4_Exercise1);
 #define PUMP_ON_ARRAY_SIZE 5
-#define SENSOR_ARRAY_SIZE 2
 static bool notify_mysensor_enabled;
 // static int temperature_state;
 

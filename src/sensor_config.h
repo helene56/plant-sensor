@@ -1,0 +1,6 @@
+#ifndef SENSOR_CONFIG_H
+#define SENSOR_CONFIG_H
+
+#define SENSOR_ARRAY_SIZE  3
+
+#endif // SENSOR_CONFIG_H
