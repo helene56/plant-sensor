@@ -11,10 +11,16 @@
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/bluetooth/conn.h>
 
+#include <zephyr/drivers/adc.h>
+
 #include <dk_buttons_and_leds.h>
 /* STEP 7 - Include the header file of MY LBS customer service */
 #include "my_pws.h"
 #include "dht_sensor.h"
+#include "sensor_config.h"
+#include "soil_sensor.h"
+
+// static const struct adc_dt_spec adc_channel = ADC_DT_SPEC_GET(DT_PATH(zephyr_user));
 
 static const struct bt_le_adv_param *adv_param = BT_LE_ADV_PARAM(
     (BT_LE_ADV_OPT_CONN |
@@ -42,13 +48,16 @@ LOG_MODULE_REGISTER(Plant_sensor, LOG_LEVEL_INF);
 #define TURN_MOTOR_OFF_INTERVAL 500
 #define PUMP_ON_ARRAY_SIZE 5
 
-static uint64_t start_time; // Stores connection start timestamp
-
+static uint64_t start_time;                     // Stores connection start timestamp
+// static uint64_t start_time_calibrate_threshold; // Stores connection start timestamp
 // static uint32_t app_temperature_value = 5;
 static bool app_pump_state;
 static bool pumping_state;
-static uint16_t sensor_value_holder[2] = {0};
+static uint16_t sensor_value_holder[SENSOR_ARRAY_SIZE] = {0};
 static bool read_from_sensor = false;
+// static bool soil_moisture_calibrated = false;
+// static int dry_plant_threshold = 0;
+// static int wet_plant_threshold = 0;
 
 static uint32_t pumping_on_arr[PUMP_ON_ARRAY_SIZE] = {0};
 static uint32_t pumping_timestamp_arr[PUMP_ON_ARRAY_SIZE] = {0};
@@ -206,9 +215,13 @@ void send_data_thread(void)
         {
             /* Send notification, the function sends notifications only if a client is subscribed */
             struct air_metrics env_readings = read_temp_humidity();
+            // read voltage level of moisture in soil
+            read_soil_moisture_mv();
             // send notification for temp/humidity
             sensor_value_holder[0] = env_readings.temp;
             sensor_value_holder[1] = env_readings.humidity;
+            sensor_value_holder[2] = soil_moisture_calibrated ? moisture_val_mv : 0;
+            
             my_pws_send_sensor_notify(sensor_value_holder);
 
             k_sleep(K_MSEC(NOTIFY_INTERVAL));
@@ -299,8 +312,78 @@ int main(void)
     k_work_init(&adv_work, adv_work_handler);
     advertising_start();
 
+    // ADC
+    // if (!adc_is_ready_dt(&adc_channel))
+    // {
+    //     LOG_ERR("ADC controller devivce %s not ready", adc_channel.dev->name);
+    //     return -1;
+    // }
+
+    // err = adc_channel_setup_dt(&adc_channel);
+    // if (err < 0)
+    // {
+    //     LOG_ERR("Could not setup channel #%d (%d)", 0, err);
+    //     return -1;
+    // }
+
+    // int16_t buf;
+    // struct adc_sequence sequence = {
+    //     .buffer = &buf,
+    //     /* buffer size in bytes, not number of samples */
+    //     .buffer_size = sizeof(buf),
+    //     // Optional
+    //     //.calibrate = true,
+    // };
+
+    // err = adc_sequence_init_dt(&adc_channel, &sequence);
+    // if (err < 0)
+    // {
+    //     LOG_ERR("Could not initalize sequnce");
+    //     return -1;
+    // }
+    // int lowest_mv = 2000;
+    initialize_adc();
+
     for (;;)
     {
+
+        // int val_mv;
+        // err = adc_read(adc_channel.dev, &sequence);
+        // if (err < 0)
+        // {
+        //     LOG_ERR("Could not read (%d)", err);
+        //     continue;
+        // }
+
+        // val_mv = (int)buf;
+
+        // err = adc_raw_to_millivolts_dt(&adc_channel, &val_mv);
+        // /* conversion to mV may not be supported, skip if not */
+        // if (err < 0)
+        // {
+        //     LOG_WRN(" (value in mV not available)\n");
+        // }
+        // else
+        // {
+        //     LOG_INF(" = %d mV", val_mv);
+        // }
+
+        // if (dry_plant_threshold == 0)
+        // {
+        //     dry_plant_threshold = val_mv;
+        // }
+        // int64_t elapsed_ms = k_uptime_get() - start_time_calibrate_threshold;
+        // if (elapsed_ms >= 40000)
+        // {
+        //     wet_plant_threshold = lowest_mv;
+        //     LOG_INF(" wet threshold set: %d", wet_plant_threshold);
+        // }
+        // if (val_mv < lowest_mv)
+        // {
+        //     lowest_mv = val_mv;
+        // }
+        // LOG_INF(" lowest mv measured: %d", lowest_mv);
+
         dk_set_led(RUN_STATUS_LED, (++blink_status) % 2);
         k_sleep(K_MSEC(RUN_LED_BLINK_INTERVAL));
     }
@@ -309,8 +392,6 @@ int main(void)
 K_THREAD_DEFINE(send_data_thread_id, STACKSIZE, send_data_thread, NULL, NULL,
                 NULL, PRIORITY, 0, 0);
 
-// K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, send_debug_statement, NULL, NULL,
-//  NULL, 8, 0, 0);
 
 K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, simulate_output_water, NULL, NULL,
                 NULL, 8, 0, 0);
