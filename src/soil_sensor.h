@@ -7,5 +7,6 @@ extern int moisture_val_mv;
 void initialize_adc();
 void read_soil_moisture_mv();
 void calibrate_soil_sensor();
+int mv_to_percentage(int value);
 
 #endif // SOIL_SENSOR
