@@ -60,6 +60,8 @@ static uint32_t pumping_timestamp_arr[PUMP_ON_ARRAY_SIZE] = {0};
 static uint32_t *pump_ptr = pumping_on_arr;
 static uint32_t *pump_end = pumping_on_arr + PUMP_ON_ARRAY_SIZE;
 static uint32_t *timestamp_ptr = pumping_timestamp_arr;
+int smooth_soil_val = 0;
+
 // static uint32_t *timestamp_end = pumping_timestamp_arr + PUMP_ON_ARRAY_SIZE;
 
 static struct k_work adv_work;
@@ -194,17 +196,22 @@ void send_data_thread(void)
             /* Send notification, the function sends notifications only if a client is subscribed */
             struct air_metrics env_readings = read_temp_humidity();
             // read voltage level of moisture in soil
-            if (soil_moisture_calibrated)
-            {
-                read_soil_moisture_mv();
-            }
+            // if (soil_moisture_calibrated)
+            // {
+            //     smooth_soil_val = read_smooth_soil();
+            // }
 
             // send notification for temp/humidity
             sensor_value_holder[0] = env_readings.temp;
             sensor_value_holder[1] = env_readings.humidity;
             // maybe add a range where the value doesnt change? the mv measured varies even if water level is not changing
-            sensor_value_holder[2] = soil_moisture_calibrated ? moisture_val_mv : 0;
-            LOG_INF("percentage: %d\n", mv_to_percentage(moisture_val_mv));
+            sensor_value_holder[2] = soil_moisture_calibrated ? smooth_soil_val : 0;
+            if (smooth_soil_val)
+            {
+                LOG_INF("percentage: %d\n", mv_to_percentage(smooth_soil_val));
+                smooth_soil_val = 0;
+            }
+            
             my_pws_send_sensor_notify(sensor_value_holder);
 
             k_sleep(K_MSEC(NOTIFY_INTERVAL));
@@ -226,6 +233,24 @@ void calibration_soil(void)
             calibrate_soil_sensor();
         }
         k_sleep(K_MSEC(100));
+    }
+}
+
+
+void read_soil(void)
+{
+    while (1)
+    {
+        if (soil_moisture_calibrated)
+        {
+            read_smooth_soil();
+        }
+        if (smooth_soil_val)
+        {
+            k_sleep(K_MSEC(1500));
+        }
+        k_sleep(K_MSEC(100));
+        
     }
 }
 
@@ -309,7 +334,7 @@ int main(void)
     advertising_start();
 
     initialize_adc();
-    start_time_debug = k_uptime_get();
+    
     for (;;)
     {
 
@@ -326,3 +351,6 @@ K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, calibration_soil, NULL, NULL,
 
 K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, simulate_output_water, NULL, NULL,
                 NULL, 8, 0, 0);
+
+K_THREAD_DEFINE(send_data_thread_id3, STACKSIZE, read_soil, NULL, NULL,
+                NULL, 6, 0, 0);
