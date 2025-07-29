@@ -1,24 +1,33 @@
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/adc.h>
 #include <zephyr/logging/log.h>
+#include <math.h>
+#include <stdlib.h>
 
 #include "soil_sensor.h"
 static int err;
 
 LOG_MODULE_DECLARE(Plant_sensor);
 
-#define SAMPLE_SIZE 6
+#define SAMPLE_SIZE 200
+#define STABLE_SAMPLE_SIZE 99
 // static int lowest_mv = 2000; // set too high to begin with
 static int wet_tolerance = 0;
 static int dry_tolerance = 0;
-static uint64_t start_time_calibrate_threshold;
+
 static int dry_plant_threshold = 0;
 static int wet_plant_threshold = 0;
 bool soil_moisture_calibrated = false;
 static int samples[SAMPLE_SIZE] = {0};
-static int * ptr_sample = samples;
-static int * ptr_end_sample = samples + SAMPLE_SIZE;
-static bool get_time = true;
+static int *ptr_sample = samples;
+static int *ptr_end_sample = samples + SAMPLE_SIZE;
+// low pass filter
+static signed long smooth_data_int;
+static signed long smooth_data_fp;
+
+const int beta = 4;
+int raw_data = 0;
+const int fp_shift = 8;
 // adc
 static int16_t buf;
 static struct adc_sequence sequence = {
@@ -26,7 +35,7 @@ static struct adc_sequence sequence = {
     /* buffer size in bytes, not number of samples */
     .buffer_size = sizeof(buf),
     // Optional
-    //.calibrate = true,
+    // .calibrate = true,
 };
 
 int moisture_val_mv = 0;
@@ -81,7 +90,21 @@ void read_soil_moisture_mv()
     else
     {
         // LOG_INF(" = %d mV", moisture_val_mv);
+        // smooth_data();
     }
+}
+
+int smooth_data()
+{
+    raw_data = moisture_val_mv;
+    raw_data <<= fp_shift;
+    smooth_data_fp = (smooth_data_fp << beta) - smooth_data_fp;
+    smooth_data_fp += raw_data;
+    smooth_data_fp >>= beta;
+    smooth_data_int = smooth_data_fp >> fp_shift;
+    LOG_INF("measured data: %d mV", moisture_val_mv);
+    LOG_INF("smooth data: %ld mV", smooth_data_int);
+    return smooth_data_int;
 }
 
 void calibrate_soil_sensor()
@@ -89,60 +112,48 @@ void calibrate_soil_sensor()
     // 1. dry condition first
     // 1.2 collect moisture_mv
     read_soil_moisture_mv();
-    if (get_time)
-    {
-        start_time_calibrate_threshold = k_uptime_get();
-        get_time = false;
-    }
-    
-    
+
     if (ptr_sample < ptr_end_sample)
     {
-        *ptr_sample = moisture_val_mv;
+        *ptr_sample = smooth_data();
         ptr_sample++;
     }
-    int64_t elapsed_ms = k_uptime_get() - start_time_calibrate_threshold;
-    if (elapsed_ms >= 10000)
+
+    if (ptr_sample >= ptr_end_sample)
     {
-        LOG_INF("sampling done. Now printing result.\n");
-        LOG_INF("[");
+        // scale: 0% -> dry, 100% -> wet
+        // 1.3 get max value
+        // 1.4 get dry tolerance
+        int min_val = samples[STABLE_SAMPLE_SIZE];
+        int max_val = samples[STABLE_SAMPLE_SIZE];
+
         ptr_sample = samples;
-        for (int i = 0; ptr_sample < ptr_end_sample; ++i)
+        ptr_sample += STABLE_SAMPLE_SIZE;
+
+        for (; ptr_sample < ptr_end_sample; ++ptr_sample)
         {
-            LOG_INF("%d mV", samples[i]);
-            ptr_sample++;
+            int val = *ptr_sample;
+            if (val > max_val)
+            {
+                max_val = val;
+            }
+            else if (val < min_val)
+            {
+                min_val = val;
+            }
         }
-        LOG_INF("]");
+        wet_tolerance = max_val - min_val;
+        wet_plant_threshold = max_val;
+        LOG_INF("wet tolerance: %d, wet threshold: %d", wet_tolerance, wet_plant_threshold);
         soil_moisture_calibrated = true;
     }
-    // 1.3 get max value
-    // 1.4 get dry tolerance
     // 2. start pump for 10 sec.
     // 2.1 wait for 10 sec. (wait for sensor at bottom to detect water)
-    // 3.1 start pump again.. repeat 
+    // 3.1 start pump again.. repeat
     // 4. water detected at bottom
     // 5. collect moisture_mv
     // 5.1 get min value
     // 5.2 get wet tolerance
-
-    // find out what range to use where the value does not change,
-    // as the measured voltage will change a bit even if water level stays the same...
-    // read_soil_moisture_mv();
-    // if (dry_plant_threshold == 0)
-    // {
-    //     dry_plant_threshold = moisture_val_mv;
-    // }
-    // if (moisture_val_mv < lowest_mv)
-    // {
-    //     lowest_mv = moisture_val_mv;
-    // }
-    // int64_t elapsed_ms = k_uptime_get() - start_time_calibrate_threshold;
-    // if (elapsed_ms >= 40000)
-    // {
-    //     wet_plant_threshold = lowest_mv;
-    //     LOG_INF(" wet threshold set: %d", wet_plant_threshold);
-    //     soil_moisture_calibrated = true;
-    // }
 }
 
 int mv_to_percentage(int value)
@@ -183,14 +194,6 @@ int mv_to_percentage(int value)
     {
         return 0;
     }
-    
-    return -1;
-}
 
-int get_tolerance(int max, int min)
-{
-    // standard deviation
-    // get mean, get standard deviation, tolerance = 1 x std dev or 2 x std dev
-    // half the range
-    return (max - min) / 2;
+    return -1;
 }
