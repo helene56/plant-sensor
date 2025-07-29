@@ -8,3 +8,8 @@
 # cmake
 CMakeCache.txt
 CMakeFiles/
+
+# env
+/.venv/
+# png
+*.png
