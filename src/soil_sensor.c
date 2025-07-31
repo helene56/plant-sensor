@@ -214,6 +214,7 @@ void calibrate_soil_sensor()
         {
             // get the latest value
             ideal_plant_threshold = samples[SAMPLE_SIZE - 1];
+            LOG_INF("Ideal threshold: %d", ideal_plant_threshold);
             // sensor calibration is done
             soil_moisture_calibrated = true;
         }

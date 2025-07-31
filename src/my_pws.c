@@ -24,10 +24,25 @@
 LOG_MODULE_DECLARE(Lesson4_Exercise1);
 #define PUMP_ON_ARRAY_SIZE 5
 static bool notify_mysensor_enabled;
-// static int temperature_state;
 
 static uint32_t pumping_on_arr[PUMP_ON_ARRAY_SIZE];
 static struct my_pws_cb pws_cb;
+
+
+const struct peripheral_command_ids ble_commands = {
+    .temp_id = 1,
+    .humidity_id = 2,
+    .light_id = 3,
+    .soil_id = 4,
+    .pump_id = 5
+};
+
+struct status_command status;
+
+static void get_command(uint8_t cmd)
+{
+
+}
 
 static void mylbsbc_ccc_mysensor_cfg_changed(const struct bt_gatt_attr *attr,
 											 uint16_t value)
@@ -35,23 +50,6 @@ static void mylbsbc_ccc_mysensor_cfg_changed(const struct bt_gatt_attr *attr,
 	notify_mysensor_enabled = (value == BT_GATT_CCC_NOTIFY);
 }
 
-/* STEP 5 - Implement the read callback function of the Temperature characteristic */
-// static ssize_t read_temperature(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf,
-// 			   uint16_t len, uint16_t offset)
-// {
-// 	// get a pointer to temperature_state which is passed in the BT_GATT_CHARACTERISTIC() and stored in attr->user_data
-// 	const char *value = attr->user_data;
-
-// 	LOG_DBG("Attribute read, handle: %u, conn: %p", attr->handle, (void *)conn);
-
-// 	if (pws_cb.temperature_cb) {
-// 		// Call the application callback function to update the get the current value of the temperature
-// 		temperature_state = pws_cb.temperature_cb();
-// 		return bt_gatt_attr_read(conn, attr, buf, len, offset, value, sizeof(*value));
-// 	}
-
-// 	return 0;
-// }
 
 static ssize_t read_pump(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf,
 						 uint16_t len, uint16_t offset)

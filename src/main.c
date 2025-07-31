@@ -49,7 +49,6 @@ LOG_MODULE_REGISTER(Plant_sensor, LOG_LEVEL_INF);
 #define PUMP_ON_ARRAY_SIZE 5
 
 static uint64_t start_time;       // Stores connection start timestamp
-static uint64_t start_time_debug; // Stores connection start timestamp
 static bool app_pump_state;
 static bool pumping_state;
 static uint16_t sensor_value_holder[SENSOR_ARRAY_SIZE] = {0};
