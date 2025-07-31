@@ -11,23 +11,32 @@ LOG_MODULE_DECLARE(Plant_sensor);
 
 #define SAMPLE_SIZE 200
 #define STABLE_SAMPLE_SIZE 99
-// static int lowest_mv = 2000; // set too high to begin with
+#define MOISTURE_READ_SIZE 100
+#define MAX_TOLERANCE 15
+#define MINUTE_WAIT_TIME 5 // TODO: TEMP VALUE, should be initialized by central over BLE
+#define IDEAL_WAIT_TIME_MIN K_MINUTES(MINUTE_WAIT_TIME)
+// tolerances
 static int wet_tolerance = 0;
 static int dry_tolerance = 0;
-
+// thresholds
 static int dry_plant_threshold = 0;
 static int wet_plant_threshold = 0;
+static int ideal_plant_threshold = 0;
+// states
 bool soil_moisture_calibrated = false;
+enum SOIL_SENSOR_STATE CURRENT_SOIL_STATE = DRY;
+// sampling
 static int samples[SAMPLE_SIZE] = {0};
 static int *ptr_sample = samples;
 static int *ptr_end_sample = samples + SAMPLE_SIZE;
+static int *ptr_end_read_moisture = samples + MOISTURE_READ_SIZE;
 // low pass filter
 static signed long smooth_data_int;
 static signed long smooth_data_fp;
-
 const int beta = 4;
 int raw_data = 0;
 const int fp_shift = 8;
+
 // adc
 static int16_t buf;
 static struct adc_sequence sequence = {
@@ -45,8 +54,7 @@ static const struct adc_dt_spec adc_channel = ADC_DT_SPEC_GET(DT_PATH(zephyr_use
 void initialize_adc()
 {
     int err;
-    // start_time_calibrate_threshold = k_uptime_get();
-    // ADC
+
     if (!adc_is_ready_dt(&adc_channel))
     {
         LOG_ERR("ADC controller devivce %s not ready", adc_channel.dev->name);
@@ -75,7 +83,6 @@ void read_soil_moisture_mv()
     if (err < 0)
     {
         LOG_ERR("Could not read (%d)", err);
-        // continue;
         return;
     }
 
@@ -102,15 +109,42 @@ int smooth_data()
     smooth_data_fp += raw_data;
     smooth_data_fp >>= beta;
     smooth_data_int = smooth_data_fp >> fp_shift;
-    LOG_INF("measured data: %d mV", moisture_val_mv);
-    LOG_INF("smooth data: %ld mV", smooth_data_int);
+    // LOG_INF("measured data: %d mV", moisture_val_mv);
+    // LOG_INF("smooth data: %ld mV", smooth_data_int);
     return smooth_data_int;
 }
 
+void read_smooth_soil()
+{
+    read_soil_moisture_mv();
+
+    if (ptr_sample < ptr_end_sample)
+    {
+        *ptr_sample = smooth_data();
+        ptr_sample++;
+    }
+
+    if (ptr_sample >= ptr_end_read_moisture)
+    {
+        ptr_sample--;
+        smooth_soil_val = *ptr_sample;
+        // reset
+        ptr_sample = samples;
+    }
+}
+
+// following operations are done:
+// 1. read current soil moisture
+// 2. get smoothed soil moisture and insert into samples
+// 3. when samples is filled -> dry threshold and tolerance is set
+// 4. pump is activated and soil is wet
+// 5. restarting sampling
+// 6. when samples is filled -> wet threshold and tolerance is set
+// 7. wait time
+// 8. when wait time is done -> latest smooth value is set as ideal threshold
+// 9. calibration done
 void calibrate_soil_sensor()
 {
-    // 1. dry condition first
-    // 1.2 collect moisture_mv
     read_soil_moisture_mv();
 
     if (ptr_sample < ptr_end_sample)
@@ -121,79 +155,101 @@ void calibrate_soil_sensor()
 
     if (ptr_sample >= ptr_end_sample)
     {
-        // scale: 0% -> dry, 100% -> wet
-        // 1.3 get max value
-        // 1.4 get dry tolerance
-        int min_val = samples[STABLE_SAMPLE_SIZE];
-        int max_val = samples[STABLE_SAMPLE_SIZE];
-
-        ptr_sample = samples;
-        ptr_sample += STABLE_SAMPLE_SIZE;
-
-        for (; ptr_sample < ptr_end_sample; ++ptr_sample)
+        if (CURRENT_SOIL_STATE != IDEAL)
         {
-            int val = *ptr_sample;
-            if (val > max_val)
+            // scale: 0% -> dry, 100% -> wet
+            int min_val = samples[STABLE_SAMPLE_SIZE];
+            int max_val = samples[STABLE_SAMPLE_SIZE];
+
+            ptr_sample = samples;
+            ptr_sample += STABLE_SAMPLE_SIZE;
+
+            for (; ptr_sample < ptr_end_sample; ++ptr_sample)
             {
-                max_val = val;
+                int val = *ptr_sample;
+                if (val > max_val)
+                {
+                    max_val = val;
+                }
+                else if (val < min_val)
+                {
+                    min_val = val;
+                }
             }
-            else if (val < min_val)
+            int tolerance = max_val - min_val;
+            // redo sampling as samples are not stable enough
+            if (tolerance >= MAX_TOLERANCE)
             {
-                min_val = val;
+                ptr_sample = samples;
+                LOG_INF("redoing sampling, tolerance: %d is too large", tolerance);
+            }
+            else
+            {
+                // temp setup to calibrate sensor
+                if (CURRENT_SOIL_STATE == DRY)
+                {
+                    dry_tolerance = max_val - min_val;
+                    dry_plant_threshold = max_val;
+                    LOG_INF("dry tolerance: %d, dry threshold: %d", dry_tolerance, dry_plant_threshold);
+                    // restart
+                    ptr_sample = samples;
+                    LOG_INF("pumping water.."); // elsewhere a thread should start pumping/manage water
+                    CURRENT_SOIL_STATE = WET;
+                    k_sleep(K_MSEC(60000 * 5)); // delay for 5 min. for sensor to acclimate to water
+                }
+                else if (CURRENT_SOIL_STATE == WET)
+                {
+                    wet_tolerance = max_val - min_val;
+                    wet_plant_threshold = min_val;
+                    LOG_INF("wet tolerance: %d, wet threshold: %d", wet_tolerance, wet_plant_threshold);
+                    // restart
+                    ptr_sample = samples;
+                    LOG_INF("Now waiting for %d min., to stabilize soil.", MINUTE_WAIT_TIME);
+                    CURRENT_SOIL_STATE = IDEAL;
+                    k_sleep(IDEAL_WAIT_TIME_MIN);
+                }
             }
         }
-        wet_tolerance = max_val - min_val;
-        wet_plant_threshold = max_val;
-        LOG_INF("wet tolerance: %d, wet threshold: %d", wet_tolerance, wet_plant_threshold);
-        soil_moisture_calibrated = true;
+        else if (CURRENT_SOIL_STATE == IDEAL)
+        {
+            // get the latest value
+            ideal_plant_threshold = samples[SAMPLE_SIZE - 1];
+            // sensor calibration is done
+            soil_moisture_calibrated = true;
+        }
     }
-    // 2. start pump for 10 sec.
-    // 2.1 wait for 10 sec. (wait for sensor at bottom to detect water)
-    // 3.1 start pump again.. repeat
-    // 4. water detected at bottom
-    // 5. collect moisture_mv
-    // 5.1 get min value
-    // 5.2 get wet tolerance
 }
 
 int mv_to_percentage(int value)
 {
     // scale: 0% -> dry, 100% -> wet
     // clamp value within input range
-    int wet_value_min = wet_plant_threshold - wet_tolerance;
-    int wet_value_max = wet_plant_threshold + wet_tolerance;
-
-    int dry_value_min = dry_plant_threshold - dry_tolerance;
-    int dry_value_max = dry_plant_threshold + dry_tolerance;
-
-    int percentage;
-
-    if (wet_value_min <= value && wet_value_max >= value)
+    // TODO: is tolerance even necessary??
+    // maybe an idea is to redo calibration if tolerance is too high? too much diff between max/min
+    // int wet_value_min = wet_plant_threshold - wet_tolerance;
+    // int dry_value_max = dry_plant_threshold + dry_tolerance;
+    int wet_value_min = wet_plant_threshold;
+    int dry_value_max = dry_plant_threshold;
+    // TODO: add check that wet value and dry value !=
+    if (value <= wet_value_min)
     {
         return 100;
     }
-    else if (dry_value_min <= value && dry_value_max >= value)
+    else if (value >= dry_value_max)
     {
         return 0;
     }
-    else if (wet_value_max < value && dry_value_min > value)
+    else
     {
-        // map the value
-        int numerator = value - wet_value_max;
-        int denominator = dry_value_min - wet_value_max;
-        percentage = 100 * (denominator - numerator) / denominator;
+        int numerator = dry_value_max - value;
+        int denominator = dry_value_max - wet_value_min;
+        int percentage = ((numerator * 100) / denominator);
+
+        if (percentage < 0)
+            percentage = 0;
+        else if (percentage > 100)
+            percentage = 100;
 
         return percentage;
     }
-    // handle edge cases and map values outside the min/max
-    else if (value < wet_value_min)
-    {
-        return 100;
-    }
-    else if (value > dry_value_max)
-    {
-        return 0;
-    }
-
-    return -1;
 }
