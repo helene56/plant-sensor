@@ -60,7 +60,7 @@ static uint32_t pumping_timestamp_arr[PUMP_ON_ARRAY_SIZE] = {0};
 static uint32_t *pump_ptr = pumping_on_arr;
 static uint32_t *pump_end = pumping_on_arr + PUMP_ON_ARRAY_SIZE;
 static uint32_t *timestamp_ptr = pumping_timestamp_arr;
-int smooth_soil_val = 0;
+int smooth_soil_val = -1;
 
 // static uint32_t *timestamp_end = pumping_timestamp_arr + PUMP_ON_ARRAY_SIZE;
 
@@ -206,10 +206,10 @@ void send_data_thread(void)
             sensor_value_holder[1] = env_readings.humidity;
             // maybe add a range where the value doesnt change? the mv measured varies even if water level is not changing
             sensor_value_holder[2] = soil_moisture_calibrated ? smooth_soil_val : 0;
-            if (smooth_soil_val)
+            if (smooth_soil_val != -1)
             {
                 LOG_INF("percentage: %d\n", mv_to_percentage(smooth_soil_val));
-                smooth_soil_val = 0;
+                smooth_soil_val = -1;
             }
             
             my_pws_send_sensor_notify(sensor_value_holder);
@@ -245,7 +245,7 @@ void read_soil(void)
         {
             read_smooth_soil();
         }
-        if (smooth_soil_val)
+        if (smooth_soil_val != -1)
         {
             k_sleep(K_MSEC(1500));
         }
