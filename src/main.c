@@ -199,7 +199,7 @@ void send_data_thread(void)
 {
     while (1)
     {
-        if (peripheral_cmds[TEMPERATURE].enabled)
+        if (peripheral_cmds[TEMPERATURE_HUMIDITY].enabled)
         {
             /* Send notification, the function sends notifications only if a client is subscribed */
             struct air_metrics env_readings = read_temp_humidity();
