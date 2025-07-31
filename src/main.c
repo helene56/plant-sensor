@@ -48,11 +48,11 @@ LOG_MODULE_REGISTER(Plant_sensor, LOG_LEVEL_INF);
 #define TURN_MOTOR_OFF_INTERVAL 500
 #define PUMP_ON_ARRAY_SIZE 5
 
-static uint64_t start_time;       // Stores connection start timestamp
+static uint64_t start_time; // Stores connection start timestamp
 static bool app_pump_state;
 static bool pumping_state;
 static uint16_t sensor_value_holder[SENSOR_ARRAY_SIZE] = {0};
-static bool read_from_sensor = false;
+// static bool read_from_sensor = false;
 
 static uint32_t pumping_on_arr[PUMP_ON_ARRAY_SIZE] = {0};
 static uint32_t pumping_timestamp_arr[PUMP_ON_ARRAY_SIZE] = {0};
@@ -60,8 +60,7 @@ static uint32_t *pump_ptr = pumping_on_arr;
 static uint32_t *pump_end = pumping_on_arr + PUMP_ON_ARRAY_SIZE;
 static uint32_t *timestamp_ptr = pumping_timestamp_arr;
 int smooth_soil_val = -1;
-
-// static uint32_t *timestamp_end = pumping_timestamp_arr + PUMP_ON_ARRAY_SIZE;
+struct peripheral_cmd peripheral_cmds[NUM_OF_CMDS];
 
 static struct k_work adv_work;
 static const struct bt_data ad[] = {
@@ -106,6 +105,15 @@ bool simulate_rain_drop_sensor()
         return true;
     }
     return false;
+}
+
+void init_peripheral_cmds()
+{
+    for (int i = 0; i < NUM_OF_CMDS; ++i)
+    {
+        peripheral_cmds[i].enabled = false;
+        peripheral_cmds[i].id = (enum PERIPHERAL_CMD_IDS)i;
+    }
 }
 
 static void simulate_output_water(void)
@@ -159,9 +167,10 @@ static uint32_t *app_pump_cb(void)
     return pumping_on_arr;
 }
 
-static void app_sensor_command_cb(bool state)
+static void app_sensor_command_cb(bool state, uint8_t id)
 {
-    read_from_sensor = state;
+
+    peripheral_cmds[id].enabled = state;
 }
 
 /* STEP 10 - Declare a varaible app_callbacks of type my_pws_cb and initiate its members to the applications call back functions we developed in steps 8.2 and 9.2. */
@@ -190,7 +199,7 @@ void send_data_thread(void)
 {
     while (1)
     {
-        if (read_from_sensor)
+        if (peripheral_cmds[TEMPERATURE].enabled)
         {
             /* Send notification, the function sends notifications only if a client is subscribed */
             struct air_metrics env_readings = read_temp_humidity();
@@ -210,7 +219,7 @@ void send_data_thread(void)
                 LOG_INF("percentage: %d\n", mv_to_percentage(smooth_soil_val));
                 smooth_soil_val = -1;
             }
-            
+
             my_pws_send_sensor_notify(sensor_value_holder);
 
             k_sleep(K_MSEC(NOTIFY_INTERVAL));
@@ -235,7 +244,6 @@ void calibration_soil(void)
     }
 }
 
-
 void read_soil(void)
 {
     while (1)
@@ -249,7 +257,6 @@ void read_soil(void)
             k_sleep(K_MSEC(1500));
         }
         k_sleep(K_MSEC(100));
-        
     }
 }
 
@@ -298,7 +305,7 @@ int main(void)
     int err;
 
     LOG_INF("Starting Lesson 4 - Exercise 1 \n");
-
+    init_peripheral_cmds();
     err = dk_leds_init();
     if (err)
     {
@@ -333,7 +340,7 @@ int main(void)
     advertising_start();
 
     initialize_adc();
-    
+
     for (;;)
     {
 

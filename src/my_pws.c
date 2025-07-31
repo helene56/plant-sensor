@@ -29,21 +29,6 @@ static uint32_t pumping_on_arr[PUMP_ON_ARRAY_SIZE];
 static struct my_pws_cb pws_cb;
 
 
-const struct peripheral_command_ids ble_commands = {
-    .temp_id = 1,
-    .humidity_id = 2,
-    .light_id = 3,
-    .soil_id = 4,
-    .pump_id = 5
-};
-
-struct status_command status;
-
-static void get_command(uint8_t cmd)
-{
-
-}
-
 static void mylbsbc_ccc_mysensor_cfg_changed(const struct bt_gatt_attr *attr,
 											 uint16_t value)
 {
@@ -92,10 +77,14 @@ static ssize_t write_command(struct bt_conn *conn,
 	{
 		// Read the received value
 		uint8_t val = *((uint8_t *)buf);
-		if (val == 0x00 || val == 0x01)
+
+		uint8_t on_off = (val >> 7) & 1; // on -> 1, off -> 0
+		uint8_t id = val & 0x7F;         // last 7 bits
+	
+		if (id < NUM_OF_CMDS && (on_off == 0x00 || on_off == 0x01))
 		{
-			// Call the application callback function to update the read_from_sensor state
-			pws_cb.sensor_command_cb(val ? true : false);
+			// Call the application callback function to update the command state
+			pws_cb.sensor_command_cb((on_off ? true : false), id);
 		}
 		else
 		{
