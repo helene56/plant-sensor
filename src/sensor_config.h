@@ -9,6 +9,7 @@ enum PERIPHERAL_CMD_IDS
     LIGHT,
     SOIL,
     PUMP,
+    SOIL_CAL,
     NUM_OF_CMDS // used to define total amount of commands
 };
 

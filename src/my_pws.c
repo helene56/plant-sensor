@@ -84,7 +84,7 @@ static ssize_t write_command(struct bt_conn *conn,
 		if (id < NUM_OF_CMDS && (on_off == 0x00 || on_off == 0x01))
 		{
 			// Call the application callback function to update the command state
-			pws_cb.sensor_command_cb((on_off ? true : false), id);
+			pws_cb.sensor_command_cb((bool)on_off, id);
 		}
 		else
 		{

@@ -203,12 +203,6 @@ void send_data_thread(void)
         {
             /* Send notification, the function sends notifications only if a client is subscribed */
             struct air_metrics env_readings = read_temp_humidity();
-            // read voltage level of moisture in soil
-            // if (soil_moisture_calibrated)
-            // {
-            //     smooth_soil_val = read_smooth_soil();
-            // }
-
             // send notification for temp/humidity
             sensor_value_holder[0] = env_readings.temp;
             sensor_value_holder[1] = env_readings.humidity;
@@ -235,10 +229,19 @@ void calibration_soil(void)
 {
     while (1)
     {
-
-        if (!soil_moisture_calibrated)
+        if (peripheral_cmds[SOIL_CAL].enabled)
         {
-            calibrate_soil_sensor();
+            if (!soil_moisture_calibrated)
+            {
+                calibrate_soil_sensor();
+            }
+            else
+            {
+                // moisture sensor should be calibrated
+                peripheral_cmds[SOIL_CAL].enabled = false;
+                // reset to make it possible to redo calibration
+                soil_moisture_calibrated = false;
+            }
         }
         k_sleep(K_MSEC(100));
     }
