@@ -27,11 +27,14 @@ extern "C" {
 #define BT_UUID_PWS_SENSOR_COMMAND_VAL                                                                     \
 	BT_UUID_128_ENCODE(0x0f956144, 0x6b9c, 0x4a41, 0xa6df, 0x977ac4b99d78)
 
+#define BT_UUID_PWS_CALIBRATION_VAL                                                                     \
+	BT_UUID_128_ENCODE(0x0f956145, 0x6b9c, 0x4a41, 0xa6df, 0x977ac4b99d78)
 
 #define BT_UUID_PWS BT_UUID_DECLARE_128(BT_UUID_PWS_VAL)
 #define BT_UUID_PWS_TEMPERATURE BT_UUID_DECLARE_128(BT_UUID_PWS_TEMPERATURE_VAL)
 #define BT_UUID_PWS_PUMP BT_UUID_DECLARE_128(BT_UUID_PWS_PUMP_VAL)
 #define BT_UUID_PWS_SENSOR_COMMAND BT_UUID_DECLARE_128(BT_UUID_PWS_SENSOR_COMMAND_VAL)
+#define BT_UUID_PWS_CALIBRATION BT_UUID_DECLARE_128(BT_UUID_PWS_CALIBRATION_VAL)
 
 /** @brief Callback type for when an pump state change is received. */
 typedef uint32_t* (*pump_cb_t)(void);
@@ -39,12 +42,16 @@ typedef uint32_t* (*pump_cb_t)(void);
 /** @brief Callback type for when the sensor_command state is pulled. */
 typedef void (*sensor_command_cb_t)(bool, uint8_t);
 
+typedef int8_t (*calibration_status_cb_t)(void);
+
 /** @brief Callback struct used by the PWS Service. */
 struct my_pws_cb {
 	/** pump state change callback. */
 	pump_cb_t pump_cb;
 	/** sensor_command read callback. */
 	sensor_command_cb_t sensor_command_cb;
+	//** calibration_status read callback */
+	calibration_status_cb_t calibration_status_cb;
 };
 
 /** @brief Initialize the PWS Service.
@@ -72,7 +79,8 @@ int my_pws_init(struct my_pws_cb *callbacks);
  * @retval 0 If the operation was successful.
  *           Otherwise, a (negative) error code is returned.
  */
-int my_pws_send_sensor_notify(uint16_t *sensor_value);
+int my_pws_send_temperature_notify(uint16_t *sensor_value);
+int my_pws_send_calibration_notify(int8_t calib_value);
 
 #ifdef __cplusplus
 }

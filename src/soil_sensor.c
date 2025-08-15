@@ -13,7 +13,7 @@ LOG_MODULE_DECLARE(Plant_sensor);
 #define STABLE_SAMPLE_SIZE 99
 #define MOISTURE_READ_SIZE 100
 #define MAX_TOLERANCE 15
-#define MINUTE_WAIT_TIME 5 // TODO: TEMP VALUE, should be initialized by central over BLE
+#define MINUTE_WAIT_TIME 1 // TODO: TEMP VALUE, should be initialized by central over BLE
 #define IDEAL_WAIT_TIME_MIN K_MINUTES(MINUTE_WAIT_TIME)
 // tolerances
 static int wet_tolerance = 0;
@@ -193,9 +193,10 @@ void calibrate_soil_sensor()
                     LOG_INF("dry tolerance: %d, dry threshold: %d", dry_tolerance, dry_plant_threshold);
                     // restart
                     ptr_sample = samples;
-                    LOG_INF("pumping water.."); // elsewhere a thread should start pumping/manage water
-                    CURRENT_SOIL_STATE = WET;
-                    k_sleep(K_MSEC(60000 * 5)); // delay for 5 min. for sensor to acclimate to water
+                    // LOG_INF("pumping water.."); // elsewhere a thread should start pumping/manage water
+                    // CURRENT_SOIL_STATE = WET;
+                    // k_sleep(K_MSEC(60000 * 5)); // delay for 5 min. for sensor to acclimate to water
+                    soil_moisture_calibrated = true; // TODO: rename so it is clear this is calibration for dry state
                 }
                 else if (CURRENT_SOIL_STATE == WET)
                 {
@@ -203,9 +204,10 @@ void calibrate_soil_sensor()
                     wet_plant_threshold = min_val;
                     LOG_INF("wet tolerance: %d, wet threshold: %d", wet_tolerance, wet_plant_threshold);
                     // restart
+                    soil_moisture_calibrated = true;
                     ptr_sample = samples;
                     LOG_INF("Now waiting for %d min., to stabilize soil.", MINUTE_WAIT_TIME);
-                    CURRENT_SOIL_STATE = IDEAL;
+                    // CURRENT_SOIL_STATE = IDEAL;
                     k_sleep(IDEAL_WAIT_TIME_MIN);
                 }
             }

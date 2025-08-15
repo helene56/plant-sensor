@@ -22,17 +22,27 @@
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_DECLARE(Lesson4_Exercise1);
+// LOG_MODULE_DECLARE(Plant_sensor);
+
 #define PUMP_ON_ARRAY_SIZE 5
-static bool notify_mysensor_enabled;
+// static bool notify_mysensor_enabled;
+static bool notify_temperature_enabled;
+static bool notify_calibration_enabled;
 
 static uint32_t pumping_on_arr[PUMP_ON_ARRAY_SIZE];
 static struct my_pws_cb pws_cb;
-
+// static int8_t calibration_status;
 
 static void mylbsbc_ccc_mysensor_cfg_changed(const struct bt_gatt_attr *attr,
 											 uint16_t value)
 {
-	notify_mysensor_enabled = (value == BT_GATT_CCC_NOTIFY);
+	notify_temperature_enabled = (value == BT_GATT_CCC_NOTIFY);
+}
+
+static void mylbsbc_ccc_calibration_cfg_changed(const struct bt_gatt_attr *attr,
+											 uint16_t value)
+{
+	notify_calibration_enabled = (value == BT_GATT_CCC_NOTIFY);
 }
 
 
@@ -55,6 +65,22 @@ static ssize_t read_pump(struct bt_conn *conn, const struct bt_gatt_attr *attr, 
 
 	return 0;
 }
+
+// static ssize_t read_calibration_status(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf,
+// 						 uint16_t len, uint16_t offset)
+// {
+// 	const uint32_t *value = (const uint32_t *)attr->user_data;
+
+// 	LOG_DBG("Attribute read, handle: %u, conn: %p", attr->handle, (void *)conn);
+// 	if (pws_cb.calibration_status_cb) {
+// 		// Call the application callback function to update the get the current value of the temperature
+// 		calibration_status = pws_cb.calibration_status_cb();
+// 		return bt_gatt_attr_read(conn, attr, buf, len, offset, value, sizeof(*value));
+// 	}
+
+// 	return 0;
+
+// }
 
 static ssize_t write_command(struct bt_conn *conn,
 							 const struct bt_gatt_attr *attr,
@@ -79,8 +105,8 @@ static ssize_t write_command(struct bt_conn *conn,
 		uint8_t val = *((uint8_t *)buf);
 
 		uint8_t on_off = (val >> 7) & 1; // on -> 1, off -> 0
-		uint8_t id = val & 0x7F;         // last 7 bits
-	
+		uint8_t id = val & 0x7F;		 // last 7 bits
+
 		if (id < NUM_OF_CMDS && (on_off == 0x00 || on_off == 0x01))
 		{
 			// Call the application callback function to update the command state
@@ -115,6 +141,14 @@ BT_GATT_SERVICE_DEFINE(my_pws_svc, BT_GATT_PRIMARY_SERVICE(BT_UUID_PWS),
 
 					   BT_GATT_CHARACTERISTIC(BT_UUID_PWS_SENSOR_COMMAND,
 											  BT_GATT_CHRC_WRITE, BT_GATT_PERM_WRITE, NULL, write_command, NULL),
+					   // notify
+					   BT_GATT_CHARACTERISTIC(BT_UUID_PWS_CALIBRATION,
+											  BT_GATT_CHRC_NOTIFY,
+											  BT_GATT_PERM_NONE,
+											  NULL, NULL, NULL),
+
+					   BT_GATT_CCC(mylbsbc_ccc_calibration_cfg_changed,
+								   BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
 
 );
 /* A function to register application callbacks for the Pump and Temperature characteristics  */
@@ -129,13 +163,26 @@ int my_pws_init(struct my_pws_cb *callbacks)
 	return 0;
 }
 
-int my_pws_send_sensor_notify(uint16_t *sensor_value)
+int my_pws_send_temperature_notify(uint16_t *sensor_value)
 {
-	if (!notify_mysensor_enabled)
+	if (!notify_temperature_enabled)
 	{
 		return -EACCES;
 	}
+
 	return bt_gatt_notify(NULL, &my_pws_svc.attrs[4],
 						  sensor_value,
 						  SENSOR_ARRAY_SIZE * sizeof(uint16_t));
+}
+
+int my_pws_send_calibration_notify(int8_t calib_value)
+{
+	if (!notify_calibration_enabled)
+	{
+		return -EACCES;
+	}
+
+	return bt_gatt_notify(NULL, &my_pws_svc.attrs[8],
+						  &calib_value,
+						  sizeof(calib_value));
 }

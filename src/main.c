@@ -62,6 +62,10 @@ static uint32_t *timestamp_ptr = pumping_timestamp_arr;
 int smooth_soil_val = -1;
 struct peripheral_cmd peripheral_cmds[NUM_OF_CMDS];
 
+enum CALIBRATION_STATUSES {NOT_STARTED=-1, STARTED, FINISH}; 
+
+enum CALIBRATION_STATUSES current_calibration_status = NOT_STARTED;
+
 static struct k_work adv_work;
 static const struct bt_data ad[] = {
     BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
@@ -169,14 +173,19 @@ static uint32_t *app_pump_cb(void)
 
 static void app_sensor_command_cb(bool state, uint8_t id)
 {
-
     peripheral_cmds[id].enabled = state;
+}
+
+static int8_t app_calibration_status_cb(void)
+{
+    return current_calibration_status;
 }
 
 /* STEP 10 - Declare a varaible app_callbacks of type my_pws_cb and initiate its members to the applications call back functions we developed in steps 8.2 and 9.2. */
 static struct my_pws_cb app_callbacks = {
     .pump_cb = app_pump_cb,
     .sensor_command_cb = app_sensor_command_cb,
+    .calibration_status_cb = app_calibration_status_cb,
 };
 
 static void button_changed(uint32_t button_state, uint32_t has_changed)
@@ -214,7 +223,7 @@ void send_data_thread(void)
                 smooth_soil_val = -1;
             }
 
-            my_pws_send_sensor_notify(sensor_value_holder);
+            my_pws_send_temperature_notify(sensor_value_holder);
 
             k_sleep(K_MSEC(NOTIFY_INTERVAL));
         }
@@ -225,20 +234,70 @@ void send_data_thread(void)
     }
 }
 
-void calibration_soil(void)
+void calibration_dry_soil(void)
 {
     while (1)
     {
         if (peripheral_cmds[SOIL_CAL].enabled)
         {
+            static bool print_message = true;
+            if (print_message)
+            {
+                LOG_INF("starting calibration of dry soil.");
+                current_calibration_status = STARTED;
+                print_message = false;
+            }
+            
             if (!soil_moisture_calibrated)
             {
                 calibrate_soil_sensor();
             }
             else
             {
+                // set the state ready for pumping
+                CURRENT_SOIL_STATE = WET;
+                current_calibration_status = FINISH;
+                my_pws_send_calibration_notify((int8_t)current_calibration_status);
+                LOG_INF("Moisture sensor calibrated!");
                 // moisture sensor should be calibrated
                 peripheral_cmds[SOIL_CAL].enabled = false;
+                // reset to make it possible to redo calibration
+                soil_moisture_calibrated = false;
+            }
+        }
+        k_sleep(K_MSEC(100));
+    }
+}
+
+void calibration_water_soil(void)
+{
+    while (1)
+    {
+        
+        // wait for user to press OK to start pump
+        if (peripheral_cmds[PUMP].enabled)
+        {
+            static bool pump_turned_on = true;
+            if (pump_turned_on)
+            {
+                // turning pump on..
+                LOG_INF("pumping water..");
+                // should only start pump once
+                // or maybe do something else? implement later..
+                pump_turned_on = false;
+                LOG_INF("turned pump off.");
+            }
+            if (!soil_moisture_calibrated)
+            {
+                calibrate_soil_sensor();
+            }
+            else
+            {
+                // set the state ready for pumping
+                CURRENT_SOIL_STATE = IDEAL;
+                LOG_INF("Moisture sensor calibrated!");
+                // moisture sensor should be calibrated
+                peripheral_cmds[PUMP].enabled = false;
                 // reset to make it possible to redo calibration
                 soil_moisture_calibrated = false;
             }
@@ -355,7 +414,7 @@ int main(void)
 K_THREAD_DEFINE(send_data_thread_id, STACKSIZE, send_data_thread, NULL, NULL,
                 NULL, PRIORITY, 0, 0);
 
-K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, calibration_soil, NULL, NULL,
+K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, calibration_dry_soil, NULL, NULL,
                 NULL, 8, 0, 0);
 
 K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, simulate_output_water, NULL, NULL,
@@ -363,3 +422,6 @@ K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, simulate_output_water, NULL, NU
 
 K_THREAD_DEFINE(send_data_thread_id3, STACKSIZE, read_soil, NULL, NULL,
                 NULL, 6, 0, 0);
+
+K_THREAD_DEFINE(send_data_thread_id4, STACKSIZE, calibration_water_soil, NULL, NULL,
+                NULL, 8, 0, 0);
