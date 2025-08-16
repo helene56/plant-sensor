@@ -14,6 +14,7 @@
 #include <zephyr/drivers/adc.h>
 
 #include <dk_buttons_and_leds.h>
+#include <zephyr/drivers/gpio.h>
 /* STEP 7 - Include the header file of MY LBS customer service */
 #include "my_pws.h"
 #include "dht_sensor.h"
@@ -48,11 +49,14 @@ LOG_MODULE_REGISTER(Plant_sensor, LOG_LEVEL_INF);
 #define TURN_MOTOR_OFF_INTERVAL 500
 #define PUMP_ON_ARRAY_SIZE 5
 
+static bool pump_turned_on;
 static uint64_t start_time; // Stores connection start timestamp
 static bool app_pump_state;
 static bool pumping_state;
 static uint16_t sensor_value_holder[SENSOR_ARRAY_SIZE] = {0};
 // static bool read_from_sensor = false;
+
+static const struct gpio_dt_spec pump = GPIO_DT_SPEC_GET(DT_ALIAS(pump0), gpios);
 
 static uint32_t pumping_on_arr[PUMP_ON_ARRAY_SIZE] = {0};
 static uint32_t pumping_timestamp_arr[PUMP_ON_ARRAY_SIZE] = {0};
@@ -109,6 +113,19 @@ bool simulate_rain_drop_sensor()
         return true;
     }
     return false;
+}
+
+void gpio_pump_init(void)
+{
+    // static const struct gpio_dt_spec pump = GPIO_DT_SPEC_GET(DT_ALIAS(pump0), gpios);
+
+    if (!gpio_is_ready_dt(&pump)) {
+		return;
+	}
+
+    gpio_pin_configure_dt(&pump, GPIO_OUTPUT);
+    gpio_pin_set_dt(&pump, 0);
+    
 }
 
 void init_peripheral_cmds()
@@ -269,6 +286,32 @@ void calibration_dry_soil(void)
     }
 }
 
+void manage_pump(void)
+{
+    static bool first_time = true;
+    if (first_time)
+    {
+        LOG_INF("watering..");
+        gpio_pin_set_dt(&pump, 1);
+        start_time = k_uptime_get();
+        first_time = false;
+        
+    }
+    else
+    {
+        int64_t elapsed_ms = k_uptime_get() - start_time;
+        // should only be on for 5 sec.
+        if (elapsed_ms >= 5000)
+        {
+            gpio_pin_set_dt(&pump, 0);
+            LOG_INF("stop watering..");
+            pump_turned_on = false;
+        }
+        
+
+    }
+}
+
 void calibration_water_soil(void)
 {
     while (1)
@@ -277,16 +320,20 @@ void calibration_water_soil(void)
         // wait for user to press OK to start pump
         if (peripheral_cmds[PUMP].enabled)
         {
-            static bool pump_turned_on = true;
+            
+            static bool one_time = true;
+            if (one_time)
+            {
+                pump_turned_on = true;
+                one_time = false;
+            }
+            
             if (pump_turned_on)
             {
-                // turning pump on..
-                LOG_INF("pumping water..");
-                // should only start pump once
-                // or maybe do something else? implement later..
-                pump_turned_on = false;
-                LOG_INF("turned pump off.");
+                manage_pump();
             }
+            
+
             if (!soil_moisture_calibrated)
             {
                 calibrate_soil_sensor();
@@ -305,6 +352,22 @@ void calibration_water_soil(void)
         k_sleep(K_MSEC(100));
     }
 }
+
+void calibration_ideal_soil(void)
+{
+    while(1)
+    {
+        if (CURRENT_SOIL_STATE == IDEAL)
+        {
+            if (!soil_moisture_calibrated)
+            {
+                calibrate_soil_sensor();
+            }
+        }
+        k_sleep(K_MSEC(100));
+    }
+}
+
 
 void read_soil(void)
 {
@@ -402,7 +465,7 @@ int main(void)
     advertising_start();
 
     initialize_adc();
-
+    gpio_pump_init();
     for (;;)
     {
 
@@ -424,4 +487,7 @@ K_THREAD_DEFINE(send_data_thread_id3, STACKSIZE, read_soil, NULL, NULL,
                 NULL, 6, 0, 0);
 
 K_THREAD_DEFINE(send_data_thread_id4, STACKSIZE, calibration_water_soil, NULL, NULL,
+                NULL, 8, 0, 0);
+
+K_THREAD_DEFINE(send_data_thread_id5, STACKSIZE, calibration_ideal_soil, NULL, NULL,
                 NULL, 8, 0, 0);
