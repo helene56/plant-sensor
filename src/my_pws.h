@@ -50,8 +50,6 @@ struct my_pws_cb {
 	pump_cb_t pump_cb;
 	/** sensor_command read callback. */
 	sensor_command_cb_t sensor_command_cb;
-	//** calibration_status read callback */
-	calibration_status_cb_t calibration_status_cb;
 };
 
 /** @brief Initialize the PWS Service.

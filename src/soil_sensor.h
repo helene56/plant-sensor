@@ -9,7 +9,7 @@ enum SOIL_SENSOR_STATE
 {
     DRY,
     WET,
-    IDEAL
+    IDEAL,
 };
 
 extern enum SOIL_SENSOR_STATE CURRENT_SOIL_STATE;

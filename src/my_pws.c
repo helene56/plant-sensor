@@ -66,21 +66,6 @@ static ssize_t read_pump(struct bt_conn *conn, const struct bt_gatt_attr *attr, 
 	return 0;
 }
 
-// static ssize_t read_calibration_status(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf,
-// 						 uint16_t len, uint16_t offset)
-// {
-// 	const uint32_t *value = (const uint32_t *)attr->user_data;
-
-// 	LOG_DBG("Attribute read, handle: %u, conn: %p", attr->handle, (void *)conn);
-// 	if (pws_cb.calibration_status_cb) {
-// 		// Call the application callback function to update the get the current value of the temperature
-// 		calibration_status = pws_cb.calibration_status_cb();
-// 		return bt_gatt_attr_read(conn, attr, buf, len, offset, value, sizeof(*value));
-// 	}
-
-// 	return 0;
-
-// }
 
 static ssize_t write_command(struct bt_conn *conn,
 							 const struct bt_gatt_attr *attr,

@@ -66,9 +66,7 @@ static uint32_t *timestamp_ptr = pumping_timestamp_arr;
 int smooth_soil_val = -1;
 struct peripheral_cmd peripheral_cmds[NUM_OF_CMDS];
 
-enum CALIBRATION_STATUSES {NOT_STARTED=-1, STARTED, FINISH}; 
-
-enum CALIBRATION_STATUSES current_calibration_status = NOT_STARTED;
+enum CALIBRATION_STATUSES {DRY_FINISH=1, IDEAL_FINISH, WAIT_TIME}; 
 
 static struct k_work adv_work;
 static const struct bt_data ad[] = {
@@ -193,16 +191,11 @@ static void app_sensor_command_cb(bool state, uint8_t id)
     peripheral_cmds[id].enabled = state;
 }
 
-static int8_t app_calibration_status_cb(void)
-{
-    return current_calibration_status;
-}
 
 /* STEP 10 - Declare a varaible app_callbacks of type my_pws_cb and initiate its members to the applications call back functions we developed in steps 8.2 and 9.2. */
 static struct my_pws_cb app_callbacks = {
     .pump_cb = app_pump_cb,
     .sensor_command_cb = app_sensor_command_cb,
-    .calibration_status_cb = app_calibration_status_cb,
 };
 
 static void button_changed(uint32_t button_state, uint32_t has_changed)
@@ -255,13 +248,13 @@ void calibration_dry_soil(void)
 {
     while (1)
     {
-        if (peripheral_cmds[SOIL_CAL].enabled)
+
+        if (peripheral_cmds[SOIL_CAL].enabled && CURRENT_SOIL_STATE == DRY)
         {
             static bool print_message = true;
             if (print_message)
             {
                 LOG_INF("starting calibration of dry soil.");
-                current_calibration_status = STARTED;
                 print_message = false;
             }
             
@@ -273,14 +266,18 @@ void calibration_dry_soil(void)
             {
                 // set the state ready for pumping
                 CURRENT_SOIL_STATE = WET;
-                current_calibration_status = FINISH;
-                my_pws_send_calibration_notify((int8_t)current_calibration_status);
+
+                my_pws_send_calibration_notify((int8_t)DRY_FINISH);
                 LOG_INF("Moisture sensor calibrated!");
                 // moisture sensor should be calibrated
                 peripheral_cmds[SOIL_CAL].enabled = false;
                 // reset to make it possible to redo calibration
                 soil_moisture_calibrated = false;
             }
+        }
+        else if (peripheral_cmds[SOIL_CAL].enabled && (CURRENT_SOIL_STATE == WET || CURRENT_SOIL_STATE == IDEAL))
+        {
+            my_pws_send_calibration_notify((int8_t)WAIT_TIME);
         }
         k_sleep(K_MSEC(100));
     }
@@ -362,6 +359,13 @@ void calibration_ideal_soil(void)
             if (!soil_moisture_calibrated)
             {
                 calibrate_soil_sensor();
+            }
+            else
+            {
+                my_pws_send_calibration_notify((int8_t)IDEAL_FINISH);
+                // resetting
+                CURRENT_SOIL_STATE = DRY;
+                soil_moisture_calibrated = false;
             }
         }
         k_sleep(K_MSEC(100));
