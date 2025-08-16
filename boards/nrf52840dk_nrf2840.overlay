@@ -9,6 +9,18 @@
     zephyr,user {
         io-channels = <&adc 0>;
     };
+
+    aliases {
+             pump0 = &mypump0;
+     };
+
+     pumps {
+             compatible = "gpio-leds";
+             mypump0: pump_0 {
+                     gpios = <&gpio1 8 GPIO_ACTIVE_HIGH>;
+             };
+     };
+
 };
 
 &adc {
