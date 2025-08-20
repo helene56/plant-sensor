@@ -21,6 +21,27 @@ struct peripheral_cmd
 
 extern struct peripheral_cmd peripheral_cmds[NUM_OF_CMDS];
 
+enum SOIL_SENSOR_STATE
+{
+    DRY,
+    WET,
+    IDEAL,
+};
+
+enum PUMP_STATE
+{
+    PUMP_OFF,
+    PUMP_ON,
+};
+
+typedef struct
+{
+    enum PUMP_STATE pump_state;
+    enum SOIL_SENSOR_STATE current_soil_state;
+    bool soil_moisture_calibrated;
+    bool pump_finished;
+} CalibrationContext;
+
 void init_peripheral_cmds();
 
 #endif // SENSOR_CONFIG_H

@@ -21,8 +21,6 @@
 #include "sensor_config.h"
 #include "soil_sensor.h"
 
-// static const struct adc_dt_spec adc_channel = ADC_DT_SPEC_GET(DT_PATH(zephyr_user));
-
 static const struct bt_le_adv_param *adv_param = BT_LE_ADV_PARAM(
     (BT_LE_ADV_OPT_CONN |
      BT_LE_ADV_OPT_USE_IDENTITY), /* Connectable advertising and use identity address */
@@ -40,7 +38,7 @@ LOG_MODULE_REGISTER(Plant_sensor, LOG_LEVEL_INF);
 
 #define STACKSIZE 2048
 #define PRIORITY 7
-/* STEP 9.1 - Specify the button to monitor */
+
 #define TEMPERATURE_BUTTON DK_BTN1_MSK // Should be replaced with a sensor, temp button
 #define PUMP_BUTTON DK_BTN2_MSK        // Should be replaced with a pump, temp button
 
@@ -49,12 +47,17 @@ LOG_MODULE_REGISTER(Plant_sensor, LOG_LEVEL_INF);
 #define TURN_MOTOR_OFF_INTERVAL 500
 #define PUMP_ON_ARRAY_SIZE 5
 
-static bool pump_turned_on;
+// static bool pump_turned_on;
 static uint64_t start_time; // Stores connection start timestamp
 static bool app_pump_state;
 static bool pumping_state;
 static uint16_t sensor_value_holder[SENSOR_ARRAY_SIZE] = {0};
-// static bool read_from_sensor = false;
+
+static CalibrationContext ctx = {
+    .pump_finished = false,
+    .pump_state = PUMP_OFF,
+    .soil_moisture_calibrated = false
+};
 
 static const struct gpio_dt_spec pump = GPIO_DT_SPEC_GET(DT_ALIAS(pump0), gpios);
 
@@ -66,7 +69,12 @@ static uint32_t *timestamp_ptr = pumping_timestamp_arr;
 int smooth_soil_val = -1;
 struct peripheral_cmd peripheral_cmds[NUM_OF_CMDS];
 
-enum CALIBRATION_STATUSES {DRY_FINISH=1, IDEAL_FINISH, WAIT_TIME}; 
+enum CALIBRATION_STATUSES
+{
+    DRY_FINISH = 1,
+    IDEAL_FINISH,
+    WAIT_TIME
+};
 
 static struct k_work adv_work;
 static const struct bt_data ad[] = {
@@ -117,13 +125,13 @@ void gpio_pump_init(void)
 {
     // static const struct gpio_dt_spec pump = GPIO_DT_SPEC_GET(DT_ALIAS(pump0), gpios);
 
-    if (!gpio_is_ready_dt(&pump)) {
-		return;
-	}
+    if (!gpio_is_ready_dt(&pump))
+    {
+        return;
+    }
 
     gpio_pin_configure_dt(&pump, GPIO_OUTPUT);
     gpio_pin_set_dt(&pump, 0);
-    
 }
 
 void init_peripheral_cmds()
@@ -191,7 +199,6 @@ static void app_sensor_command_cb(bool state, uint8_t id)
     peripheral_cmds[id].enabled = state;
 }
 
-
 /* STEP 10 - Declare a varaible app_callbacks of type my_pws_cb and initiate its members to the applications call back functions we developed in steps 8.2 and 9.2. */
 static struct my_pws_cb app_callbacks = {
     .pump_cb = app_pump_cb,
@@ -244,134 +251,207 @@ void send_data_thread(void)
     }
 }
 
-void calibration_dry_soil(void)
+void manage_pump(CalibrationContext *ctx)
 {
-    while (1)
-    {
-
-        if (peripheral_cmds[SOIL_CAL].enabled && CURRENT_SOIL_STATE == DRY)
-        {
-            static bool print_message = true;
-            if (print_message)
-            {
-                LOG_INF("starting calibration of dry soil.");
-                print_message = false;
-            }
-            
-            if (!soil_moisture_calibrated)
-            {
-                calibrate_soil_sensor();
-            }
-            else
-            {
-                // set the state ready for pumping
-                CURRENT_SOIL_STATE = WET;
-
-                my_pws_send_calibration_notify((int8_t)DRY_FINISH);
-                LOG_INF("Moisture sensor calibrated!");
-                // moisture sensor should be calibrated
-                peripheral_cmds[SOIL_CAL].enabled = false;
-                // reset to make it possible to redo calibration
-                soil_moisture_calibrated = false;
-            }
-        }
-        else if (peripheral_cmds[SOIL_CAL].enabled && (CURRENT_SOIL_STATE == WET || CURRENT_SOIL_STATE == IDEAL))
-        {
-            my_pws_send_calibration_notify((int8_t)WAIT_TIME);
-        }
-        k_sleep(K_MSEC(100));
-    }
-}
-
-void manage_pump(void)
-{
-    static bool first_time = true;
-    if (first_time)
+    if (peripheral_cmds[PUMP].enabled && ctx->current_soil_state == WET)
     {
         LOG_INF("watering..");
         gpio_pin_set_dt(&pump, 1);
         start_time = k_uptime_get();
-        first_time = false;
+        ctx->pump_state = PUMP_ON;
+        peripheral_cmds[PUMP].enabled = false;
         
     }
-    else
+    else if (ctx->pump_state == PUMP_ON)
     {
+
         int64_t elapsed_ms = k_uptime_get() - start_time;
         // should only be on for 5 sec.
         if (elapsed_ms >= 5000)
         {
             gpio_pin_set_dt(&pump, 0);
             LOG_INF("stop watering..");
-            pump_turned_on = false;
+            ctx->pump_state = PUMP_OFF;
+            ctx->pump_finished = true;
         }
-        
-
     }
 }
 
-void calibration_water_soil(void)
+void do_calibration_step(CalibrationContext *ctx)
 {
+    switch (ctx->current_soil_state)
+    {
+    case DRY:
+        calibrate_soil_sensor(ctx);
+        break;
+
+    case WET:
+        manage_pump(ctx);
+        calibrate_soil_sensor(ctx);
+        break;
+
+    case IDEAL:
+        calibrate_soil_sensor(ctx);
+        break;
+    }
+}
+
+void update_state(CalibrationContext *ctx)
+{
+    switch (ctx->current_soil_state)
+    {
+    case DRY:
+        if (peripheral_cmds[SOIL_CAL].enabled && ctx->soil_moisture_calibrated)
+        {
+            ctx->current_soil_state = WET;
+            printf("moisture sensor calibrated in dry soil\n");
+            my_pws_send_calibration_notify((int8_t)DRY_FINISH);
+            // peripheral_cmds[SOIL_CAL].enabled = false;
+            ctx->soil_moisture_calibrated = false;
+            
+        }
+        break;
+    case WET:
+        if (ctx->pump_finished && ctx->soil_moisture_calibrated)
+        {
+            ctx->current_soil_state = IDEAL;
+            printf("moisture sensor calibrated in wet soil\n");
+            // moisture sensor should be calibrated
+            ctx->pump_finished = false;
+            // reset to make it possible to redo calibration
+            ctx->soil_moisture_calibrated = false;
+        }
+        break;
+    case IDEAL:
+        if (ctx->soil_moisture_calibrated)
+        {
+            printf("ideal soil finish\n");
+            // resetting
+            ctx->current_soil_state = DRY;
+            ctx->soil_moisture_calibrated = false;
+            peripheral_cmds[SOIL_CAL].enabled = false;
+            printf("Calibration complete!\n");
+        }
+        break;
+    }
+}
+
+// void calibration_dry_soil(void)
+// {
+//     while (1)
+//     {
+
+//         if (peripheral_cmds[SOIL_CAL].enabled && current_soil_state == DRY)
+//         {
+//             static bool print_message = true;
+//             if (print_message)
+//             {
+//                 LOG_INF("starting calibration of dry soil.");
+//                 print_message = false;
+//             }
+
+//             if (!soil_moisture_calibrated)
+//             {
+//                 calibrate_soil_sensor();
+//             }
+//             else
+//             {
+//                 // set the state ready for pumping
+//                 current_soil_state = WET;
+
+//                 my_pws_send_calibration_notify((int8_t)DRY_FINISH);
+//                 LOG_INF("Moisture sensor calibrated!");
+//                 // moisture sensor should be calibrated
+//                 peripheral_cmds[SOIL_CAL].enabled = false;
+//                 // reset to make it possible to redo calibration
+//                 soil_moisture_calibrated = false;
+//             }
+//         }
+//         // else if (peripheral_cmds[SOIL_CAL].enabled && (current_soil_state == WET || current_soil_state == IDEAL))
+//         // {
+//         //     my_pws_send_calibration_notify((int8_t)WAIT_TIME);
+//         // }
+//         k_sleep(K_MSEC(100));
+//     }
+// }
+
+// void calibration_water_soil(void)
+// {
+//     while (1)
+//     {
+
+//         // wait for user to press OK to start pump
+//         if (peripheral_cmds[PUMP].enabled)
+//         {
+
+//             static bool one_time = true;
+//             if (one_time)
+//             {
+//                 pump_turned_on = true;
+//                 one_time = false;
+//             }
+
+//             if (pump_turned_on)
+//             {
+//                 manage_pump();
+//             }
+
+//             if (!soil_moisture_calibrated)
+//             {
+//                 calibrate_soil_sensor();
+//             }
+//             else
+//             {
+//                 // set the state ready for pumping
+//                 current_soil_state = IDEAL;
+//                 LOG_INF("Moisture sensor calibrated!");
+//                 // moisture sensor should be calibrated
+//                 peripheral_cmds[PUMP].enabled = false;
+//                 // reset to make it possible to redo calibration
+//                 soil_moisture_calibrated = false;
+//             }
+//         }
+//         k_sleep(K_MSEC(100));
+//     }
+// }
+
+// void calibration_ideal_soil(void)
+// {
+//     while (1)
+//     {
+//         if (current_soil_state == IDEAL)
+//         {
+//             if (!soil_moisture_calibrated)
+//             {
+//                 calibrate_soil_sensor();
+//             }
+//             else
+//             {
+//                 my_pws_send_calibration_notify((int8_t)IDEAL_FINISH);
+//                 // resetting
+//                 current_soil_state = DRY;
+//                 soil_moisture_calibrated = false;
+//             }
+//         }
+//         k_sleep(K_MSEC(100));
+//     }
+// }
+
+// this should be the thread running the main calibration
+void main_calibrate_thread(void *p1)
+{
+    CalibrationContext *ctx = (CalibrationContext *)p1;
+
     while (1)
     {
-        
-        // wait for user to press OK to start pump
-        if (peripheral_cmds[PUMP].enabled)
+        if (peripheral_cmds[SOIL_CAL].enabled)
         {
-            
-            static bool one_time = true;
-            if (one_time)
-            {
-                pump_turned_on = true;
-                one_time = false;
-            }
-            
-            if (pump_turned_on)
-            {
-                manage_pump();
-            }
-            
-
-            if (!soil_moisture_calibrated)
-            {
-                calibrate_soil_sensor();
-            }
-            else
-            {
-                // set the state ready for pumping
-                CURRENT_SOIL_STATE = IDEAL;
-                LOG_INF("Moisture sensor calibrated!");
-                // moisture sensor should be calibrated
-                peripheral_cmds[PUMP].enabled = false;
-                // reset to make it possible to redo calibration
-                soil_moisture_calibrated = false;
-            }
+            do_calibration_step(ctx);
+            update_state(ctx);
         }
         k_sleep(K_MSEC(100));
     }
 }
-
-void calibration_ideal_soil(void)
-{
-    while(1)
-    {
-        if (CURRENT_SOIL_STATE == IDEAL)
-        {
-            if (!soil_moisture_calibrated)
-            {
-                calibrate_soil_sensor();
-            }
-            else
-            {
-                my_pws_send_calibration_notify((int8_t)IDEAL_FINISH);
-                // resetting
-                CURRENT_SOIL_STATE = DRY;
-                soil_moisture_calibrated = false;
-            }
-        }
-        k_sleep(K_MSEC(100));
-    }
-}
-
 
 void read_soil(void)
 {
@@ -435,6 +515,7 @@ int main(void)
 
     LOG_INF("Starting Lesson 4 - Exercise 1 \n");
     init_peripheral_cmds();
+
     err = dk_leds_init();
     if (err)
     {
@@ -481,7 +562,7 @@ int main(void)
 K_THREAD_DEFINE(send_data_thread_id, STACKSIZE, send_data_thread, NULL, NULL,
                 NULL, PRIORITY, 0, 0);
 
-K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, calibration_dry_soil, NULL, NULL,
+K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, main_calibrate_thread, &ctx, NULL,
                 NULL, 8, 0, 0);
 
 K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, simulate_output_water, NULL, NULL,
@@ -489,9 +570,3 @@ K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, simulate_output_water, NULL, NU
 
 K_THREAD_DEFINE(send_data_thread_id3, STACKSIZE, read_soil, NULL, NULL,
                 NULL, 6, 0, 0);
-
-K_THREAD_DEFINE(send_data_thread_id4, STACKSIZE, calibration_water_soil, NULL, NULL,
-                NULL, 8, 0, 0);
-
-K_THREAD_DEFINE(send_data_thread_id5, STACKSIZE, calibration_ideal_soil, NULL, NULL,
-                NULL, 8, 0, 0);

@@ -5,6 +5,7 @@
 #include <stdlib.h>
 
 #include "soil_sensor.h"
+#include "sensor_config.h"
 static int err;
 
 LOG_MODULE_DECLARE(Plant_sensor);
@@ -143,7 +144,7 @@ void read_smooth_soil()
 // 7. wait time
 // 8. when wait time is done -> latest smooth value is set as ideal threshold
 // 9. calibration done
-void calibrate_soil_sensor()
+void calibrate_soil_sensor(CalibrationContext *ctx)
 {
     read_soil_moisture_mv();
 
@@ -196,7 +197,7 @@ void calibrate_soil_sensor()
                     // LOG_INF("pumping water.."); // elsewhere a thread should start pumping/manage water
                     // CURRENT_SOIL_STATE = WET;
                     // k_sleep(K_MSEC(60000 * 5)); // delay for 5 min. for sensor to acclimate to water
-                    soil_moisture_calibrated = true; // TODO: rename so it is clear this is calibration for dry state
+                    ctx->soil_moisture_calibrated = true; // TODO: rename so it is clear this is calibration for dry state
                 }
                 else if (CURRENT_SOIL_STATE == WET)
                 {
@@ -204,7 +205,7 @@ void calibrate_soil_sensor()
                     wet_plant_threshold = min_val;
                     LOG_INF("wet tolerance: %d, wet threshold: %d", wet_tolerance, wet_plant_threshold);
                     // restart
-                    soil_moisture_calibrated = true;
+                    ctx->soil_moisture_calibrated = true;
                     ptr_sample = samples;
                     LOG_INF("Now waiting for %d min., to stabilize soil.", MINUTE_WAIT_TIME);
                     // CURRENT_SOIL_STATE = IDEAL;
@@ -218,7 +219,7 @@ void calibrate_soil_sensor()
             ideal_plant_threshold = samples[SAMPLE_SIZE - 1];
             LOG_INF("Ideal threshold: %d", ideal_plant_threshold);
             // sensor calibration is done
-            soil_moisture_calibrated = true;
+            ctx->soil_moisture_calibrated = true;
         }
     }
 }
