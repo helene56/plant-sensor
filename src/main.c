@@ -340,6 +340,7 @@ void update_state(CalibrationContext *ctx)
             ctx->soil_moisture_calibrated = false;
             peripheral_cmds[SOIL_CAL].enabled = false;
             printf("Calibration complete!\n");
+            my_pws_send_calibration_notify((int8_t)IDEAL_FINISH);
             // TODO: send message to device that full calibration is done. (2/2 kalibreret)
         }
         break;
