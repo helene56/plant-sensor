@@ -56,8 +56,7 @@ static uint16_t sensor_value_holder[SENSOR_ARRAY_SIZE] = {0};
 static CalibrationContext ctx = {
     .pump_finished = false,
     .pump_state = PUMP_OFF,
-    .soil_moisture_calibrated = false
-};
+    .soil_moisture_calibrated = false};
 
 static const struct gpio_dt_spec pump = GPIO_DT_SPEC_GET(DT_ALIAS(pump0), gpios);
 
@@ -253,21 +252,20 @@ void send_data_thread(void)
 
 void manage_pump(CalibrationContext *ctx)
 {
-    if (peripheral_cmds[PUMP].enabled && ctx->current_soil_state == WET)
+    if (peripheral_cmds[PUMP].enabled)
     {
         LOG_INF("watering..");
         gpio_pin_set_dt(&pump, 1);
         start_time = k_uptime_get();
         ctx->pump_state = PUMP_ON;
         peripheral_cmds[PUMP].enabled = false;
-        
     }
     else if (ctx->pump_state == PUMP_ON)
     {
 
         int64_t elapsed_ms = k_uptime_get() - start_time;
         // should only be on for 5 sec.
-        if (elapsed_ms >= 5000)
+        if (elapsed_ms >= 500)
         {
             gpio_pin_set_dt(&pump, 0);
             LOG_INF("stop watering..");
@@ -285,8 +283,11 @@ void do_calibration_step(CalibrationContext *ctx)
         calibrate_soil_sensor(ctx);
         break;
 
-    case WET:
+    case START_PUMP:
         manage_pump(ctx);
+        break;
+
+    case WET:
         calibrate_soil_sensor(ctx);
         break;
 
@@ -303,19 +304,26 @@ void update_state(CalibrationContext *ctx)
     case DRY:
         if (peripheral_cmds[SOIL_CAL].enabled && ctx->soil_moisture_calibrated)
         {
-            ctx->current_soil_state = WET;
-            printf("moisture sensor calibrated in dry soil\n");
+            ctx->current_soil_state = START_PUMP;
+            LOG_INF("moisture sensor calibrated in dry soil\n");
             my_pws_send_calibration_notify((int8_t)DRY_FINISH);
+            LOG_INF("waiting for user to start pump..");
             // peripheral_cmds[SOIL_CAL].enabled = false;
-            ctx->soil_moisture_calibrated = false;
-            
+            // ctx->soil_moisture_calibrated = false;
         }
         break;
+    case START_PUMP:
+        if (ctx->pump_finished)
+        {
+            ctx->current_soil_state = WET;
+            ctx->soil_moisture_calibrated = false;
+            LOG_INF("pump finished. starting wet calibration.");
+        }
     case WET:
         if (ctx->pump_finished && ctx->soil_moisture_calibrated)
         {
             ctx->current_soil_state = IDEAL;
-            printf("moisture sensor calibrated in wet soil\n");
+            LOG_INF("moisture sensor calibrated in wet soil\n");
             // moisture sensor should be calibrated
             ctx->pump_finished = false;
             // reset to make it possible to redo calibration
@@ -328,14 +336,15 @@ void update_state(CalibrationContext *ctx)
             printf("ideal soil finish\n");
             // resetting
             ctx->current_soil_state = DRY;
+            // TODO: set to true to enable reading from sensor at an interval?
             ctx->soil_moisture_calibrated = false;
             peripheral_cmds[SOIL_CAL].enabled = false;
             printf("Calibration complete!\n");
+            // TODO: send message to device that full calibration is done. (2/2 kalibreret)
         }
         break;
     }
 }
-
 
 // this should be the thread running the main calibration
 void main_calibrate_thread(void *p1)

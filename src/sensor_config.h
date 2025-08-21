@@ -24,6 +24,8 @@ extern struct peripheral_cmd peripheral_cmds[NUM_OF_CMDS];
 enum SOIL_SENSOR_STATE
 {
     DRY,
+    WAIT,
+    START_PUMP,
     WET,
     IDEAL,
 };

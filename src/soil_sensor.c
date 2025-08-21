@@ -25,7 +25,7 @@ static int wet_plant_threshold = 0;
 static int ideal_plant_threshold = 0;
 // states
 bool soil_moisture_calibrated = false;
-enum SOIL_SENSOR_STATE CURRENT_SOIL_STATE = DRY;
+// enum SOIL_SENSOR_STATE CURRENT_SOIL_STATE = DRY;
 // sampling
 static int samples[SAMPLE_SIZE] = {0};
 static int *ptr_sample = samples;
@@ -156,7 +156,7 @@ void calibrate_soil_sensor(CalibrationContext *ctx)
 
     if (ptr_sample >= ptr_end_sample)
     {
-        if (CURRENT_SOIL_STATE != IDEAL)
+        if (ctx->current_soil_state != IDEAL)
         {
             // scale: 0% -> dry, 100% -> wet
             int min_val = samples[STABLE_SAMPLE_SIZE];
@@ -187,7 +187,7 @@ void calibrate_soil_sensor(CalibrationContext *ctx)
             else
             {
                 // temp setup to calibrate sensor
-                if (CURRENT_SOIL_STATE == DRY)
+                if (ctx->current_soil_state == DRY)
                 {
                     dry_tolerance = max_val - min_val;
                     dry_plant_threshold = max_val;
@@ -199,7 +199,7 @@ void calibrate_soil_sensor(CalibrationContext *ctx)
                     // k_sleep(K_MSEC(60000 * 5)); // delay for 5 min. for sensor to acclimate to water
                     ctx->soil_moisture_calibrated = true; // TODO: rename so it is clear this is calibration for dry state
                 }
-                else if (CURRENT_SOIL_STATE == WET)
+                else if (ctx->current_soil_state == WET)
                 {
                     wet_tolerance = max_val - min_val;
                     wet_plant_threshold = min_val;
@@ -213,7 +213,7 @@ void calibrate_soil_sensor(CalibrationContext *ctx)
                 }
             }
         }
-        else if (CURRENT_SOIL_STATE == IDEAL)
+        else if (ctx->current_soil_state == IDEAL)
         {
             // get the latest value
             ideal_plant_threshold = samples[SAMPLE_SIZE - 1];
