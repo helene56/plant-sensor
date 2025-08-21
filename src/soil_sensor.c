@@ -10,11 +10,13 @@ static int err;
 
 LOG_MODULE_DECLARE(Plant_sensor);
 
-#define SAMPLE_SIZE 200
+#define SAMPLE_SIZE 200 // TODO: i think 200 is the right size but reduced for testing to 100
 #define STABLE_SAMPLE_SIZE 99
-#define MOISTURE_READ_SIZE 100
+#define MOISTURE_READ_SIZE 100 // TODO when SAMPLE_SIZE is 200 i used 100
 #define MAX_TOLERANCE 15
 #define MINUTE_WAIT_TIME 1 // TODO: TEMP VALUE, should be initialized by central over BLE
+#define SECONDS_WAIT_TIME 10 // TODO: temp value, only for testing 
+#define IDEAL_WAIT_TIME_SEC K_SECONDS(SECONDS_WAIT_TIME)
 #define IDEAL_WAIT_TIME_MIN K_MINUTES(MINUTE_WAIT_TIME)
 // tolerances
 static int wet_tolerance = 0;
@@ -209,7 +211,7 @@ void calibrate_soil_sensor(CalibrationContext *ctx)
                     ptr_sample = samples;
                     LOG_INF("Now waiting for %d min., to stabilize soil.", MINUTE_WAIT_TIME);
                     // CURRENT_SOIL_STATE = IDEAL;
-                    k_sleep(IDEAL_WAIT_TIME_MIN);
+                    k_sleep(IDEAL_WAIT_TIME_SEC);
                 }
             }
         }
