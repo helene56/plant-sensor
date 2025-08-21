@@ -10,9 +10,9 @@ static int err;
 
 LOG_MODULE_DECLARE(Plant_sensor);
 
-#define SAMPLE_SIZE 200 // TODO: i think 200 is the right size but reduced for testing to 100
+#define SAMPLE_SIZE 200
 #define STABLE_SAMPLE_SIZE 99
-#define MOISTURE_READ_SIZE 100 // TODO when SAMPLE_SIZE is 200 i used 100
+#define MOISTURE_READ_SIZE 100
 #define MAX_TOLERANCE 15
 #define MINUTE_WAIT_TIME 1 // TODO: TEMP VALUE, should be initialized by central over BLE
 #define SECONDS_WAIT_TIME 10 // TODO: temp value, only for testing 
@@ -222,6 +222,8 @@ void calibrate_soil_sensor(CalibrationContext *ctx)
             LOG_INF("Ideal threshold: %d", ideal_plant_threshold);
             // sensor calibration is done
             ctx->soil_moisture_calibrated = true;
+            // restart
+            ptr_sample = samples;
         }
     }
 }
