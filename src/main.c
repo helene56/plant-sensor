@@ -52,7 +52,7 @@ static uint64_t start_time; // Stores connection start timestamp
 static bool app_pump_state;
 static bool pumping_state;
 static uint16_t sensor_value_holder[SENSOR_ARRAY_SIZE] = {0};
-
+static bool print_once = true;
 static CalibrationContext ctx = {
     .pump_finished = false,
     .pump_state = PUMP_OFF,
@@ -333,15 +333,16 @@ void update_state(CalibrationContext *ctx)
     case IDEAL:
         if (ctx->soil_moisture_calibrated)
         {
-            printf("ideal soil finish\n");
+            printk("ideal soil finish\n");
             // resetting
             ctx->current_soil_state = DRY;
             // TODO: set to true to enable reading from sensor at an interval?
             ctx->soil_moisture_calibrated = false;
             peripheral_cmds[SOIL_CAL].enabled = false;
-            printf("Calibration complete!\n");
+            printk("Calibration complete!\n");
             my_pws_send_calibration_notify((int8_t)IDEAL_FINISH);
-            // TODO: send message to device that full calibration is done. (2/2 kalibreret)
+            print_once = true;
+
         }
         break;
     }
@@ -351,11 +352,16 @@ void update_state(CalibrationContext *ctx)
 void main_calibrate_thread(void *p1)
 {
     CalibrationContext *ctx = (CalibrationContext *)p1;
-
+    
     while (1)
     {
         if (peripheral_cmds[SOIL_CAL].enabled)
         {
+            if (print_once)
+            {
+                LOG_INF("starting calibration");
+                print_once = false;
+            }
             do_calibration_step(ctx);
             update_state(ctx);
         }
@@ -470,10 +476,10 @@ int main(void)
 }
 
 K_THREAD_DEFINE(send_data_thread_id, STACKSIZE, send_data_thread, NULL, NULL,
-                NULL, PRIORITY, 0, 0);
+                NULL, 8, 0, 0);
 
 K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, main_calibrate_thread, &ctx, NULL,
-                NULL, 8, 0, 0);
+                NULL, PRIORITY, 0, 0);
 
 K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, simulate_output_water, NULL, NULL,
                 NULL, 8, 0, 0);
