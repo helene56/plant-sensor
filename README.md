@@ -17,6 +17,10 @@ TODO - add light sensor
 
 TODO - add flow sensor (measure how much water has been used)
 
+other components:
+DS3231 (rtc)
+for keeping track of time, for the logging time stamps
+
 ## Schematic
 
 TODO - add link to schematic
