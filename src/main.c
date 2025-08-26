@@ -68,6 +68,9 @@ static uint32_t *timestamp_ptr = pumping_timestamp_arr;
 int smooth_soil_val = -1;
 struct peripheral_cmd peripheral_cmds[NUM_OF_CMDS];
 
+static uint8_t app_data_logs[10];
+
+
 enum CALIBRATION_STATUSES
 {
     DRY_FINISH = 1,
@@ -198,10 +201,24 @@ static void app_sensor_command_cb(bool state, uint8_t id)
     peripheral_cmds[id].enabled = state;
 }
 
+static uint8_t* app_update_logs()
+{
+    // date
+    app_data_logs[0] = 2025 & 0xFF;
+    app_data_logs[1] = (2025 >> 8) & 0xFF;
+    app_data_logs[2] = 8;
+    app_data_logs[3] = 26;
+    // two random datas
+    app_data_logs[4] = 25;
+    app_data_logs[5] = 55;
+    return app_data_logs;
+}
+
 /* STEP 10 - Declare a varaible app_callbacks of type my_pws_cb and initiate its members to the applications call back functions we developed in steps 8.2 and 9.2. */
 static struct my_pws_cb app_callbacks = {
     .pump_cb = app_pump_cb,
     .sensor_command_cb = app_sensor_command_cb,
+    .update_logs_cb = app_update_logs,
 };
 
 static void button_changed(uint32_t button_state, uint32_t has_changed)
