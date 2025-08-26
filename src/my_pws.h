@@ -30,11 +30,15 @@ extern "C" {
 #define BT_UUID_PWS_CALIBRATION_VAL                                                                     \
 	BT_UUID_128_ENCODE(0x0f956145, 0x6b9c, 0x4a41, 0xa6df, 0x977ac4b99d78)
 
+#define BT_UUID_PWS_LOG_VAL                                                                     \
+	BT_UUID_128_ENCODE(0x0f956146, 0x6b9c, 0x4a41, 0xa6df, 0x977ac4b99d78)
+
 #define BT_UUID_PWS BT_UUID_DECLARE_128(BT_UUID_PWS_VAL)
 #define BT_UUID_PWS_TEMPERATURE BT_UUID_DECLARE_128(BT_UUID_PWS_TEMPERATURE_VAL)
 #define BT_UUID_PWS_PUMP BT_UUID_DECLARE_128(BT_UUID_PWS_PUMP_VAL)
 #define BT_UUID_PWS_SENSOR_COMMAND BT_UUID_DECLARE_128(BT_UUID_PWS_SENSOR_COMMAND_VAL)
 #define BT_UUID_PWS_CALIBRATION BT_UUID_DECLARE_128(BT_UUID_PWS_CALIBRATION_VAL)
+#define BT_UUID_PWS_LOG BT_UUID_DECLARE_128(BT_UUID_PWS_LOG_VAL)
 
 /** @brief Callback type for when an pump state change is received. */
 typedef uint32_t* (*pump_cb_t)(void);
@@ -42,7 +46,7 @@ typedef uint32_t* (*pump_cb_t)(void);
 /** @brief Callback type for when the sensor_command state is pulled. */
 typedef void (*sensor_command_cb_t)(bool, uint8_t);
 
-typedef int8_t (*calibration_status_cb_t)(void);
+typedef uint8_t* (*update_logs_cb_t)(void);
 
 /** @brief Callback struct used by the PWS Service. */
 struct my_pws_cb {
@@ -50,6 +54,8 @@ struct my_pws_cb {
 	pump_cb_t pump_cb;
 	/** sensor_command read callback. */
 	sensor_command_cb_t sensor_command_cb;
+	// update logging - TODO: temporary function to send out a log
+	update_logs_cb_t update_logs_cb;
 };
 
 /** @brief Initialize the PWS Service.

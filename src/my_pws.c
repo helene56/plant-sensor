@@ -31,7 +31,7 @@ static bool notify_calibration_enabled;
 
 static uint32_t pumping_on_arr[PUMP_ON_ARRAY_SIZE];
 static struct my_pws_cb pws_cb;
-// static int8_t calibration_status;
+static uint8_t data_logs[10];
 
 static void mylbsbc_ccc_mysensor_cfg_changed(const struct bt_gatt_attr *attr,
 											 uint16_t value)
@@ -61,6 +61,25 @@ static ssize_t read_pump(struct bt_conn *conn, const struct bt_gatt_attr *attr, 
 		// Copy values if needed:
 		memcpy(pumping_on_arr, pump_values, sizeof(pumping_on_arr));
 		return bt_gatt_attr_read(conn, attr, buf, len, offset, value, sizeof(pumping_on_arr));
+	}
+
+	return 0;
+}
+
+static ssize_t read_log(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf,
+						 uint16_t len, uint16_t offset)
+{
+	// get a pointer to pump_state which is passed in the BT_GATT_CHARACTERISTIC() and stored in attr->user_data
+	const uint32_t *value = (const uint32_t *)attr->user_data;
+
+	LOG_DBG("Attribute read, handle: %u, conn: %p", attr->handle, (void *)conn);
+
+	if (pws_cb.update_logs_cb)
+	{
+		// Call the application callback function to update the get the current value of the pump
+		const uint32_t *log_values = pws_cb.update_logs_cb();
+		memcpy(data_logs, log_values, sizeof(data_logs));
+		return bt_gatt_attr_read(conn, attr, buf, len, offset, value, sizeof(data_logs));
 	}
 
 	return 0;
@@ -135,6 +154,10 @@ BT_GATT_SERVICE_DEFINE(my_pws_svc, BT_GATT_PRIMARY_SERVICE(BT_UUID_PWS),
 					   BT_GATT_CCC(mylbsbc_ccc_calibration_cfg_changed,
 								   BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
 
+						// 
+						BT_GATT_CHARACTERISTIC(BT_UUID_PWS_LOG, BT_GATT_CHRC_READ,
+											  BT_GATT_PERM_READ, read_log, NULL, data_logs),
+
 );
 /* A function to register application callbacks for the Pump and Temperature characteristics  */
 int my_pws_init(struct my_pws_cb *callbacks)
@@ -143,6 +166,7 @@ int my_pws_init(struct my_pws_cb *callbacks)
 	{
 		pws_cb.pump_cb = callbacks->pump_cb;
 		pws_cb.sensor_command_cb = callbacks->sensor_command_cb;
+		pws_cb.update_logs_cb = callbacks->update_logs_cb;
 	}
 
 	return 0;
