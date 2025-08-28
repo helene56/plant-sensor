@@ -68,8 +68,7 @@ static uint32_t *timestamp_ptr = pumping_timestamp_arr;
 int smooth_soil_val = -1;
 struct peripheral_cmd peripheral_cmds[NUM_OF_CMDS];
 
-static uint8_t app_data_logs[10];
-
+static uint32_t app_data_logs[10];
 
 enum CALIBRATION_STATUSES
 {
@@ -201,17 +200,33 @@ static void app_sensor_command_cb(bool state, uint8_t id)
     peripheral_cmds[id].enabled = state;
 }
 
-static uint8_t* app_update_logs()
+static uint32_t* app_update_logs()
 {
-    // date
-    app_data_logs[0] = 2025 & 0xFF;
-    app_data_logs[1] = (2025 >> 8) & 0xFF;
-    app_data_logs[2] = 8;
-    app_data_logs[3] = 26;
-    // two random datas
-    app_data_logs[4] = 25;
-    app_data_logs[5] = 55;
+    // // unix format -> 2025/08/26 at 12:36:00
+    // app_data_logs[0] = 1756211760;
+    // // two random values packed in order of LSB
+    // app_data_logs[1] = (55 << 16) | 25;
+
     return app_data_logs;
+}
+
+static void app_erase_logs()
+{
+    while (1)
+    {
+        // TODO: move a pointer to the next aviailbe space instead
+        if (peripheral_cmds[CLEAR_LOG].enabled)
+        {
+            for (int i = 0; i<10;++i)
+            {
+                app_data_logs[i] = 0;
+            }
+            peripheral_cmds[CLEAR_LOG].enabled = false;
+        }
+        k_sleep(K_MSEC(100));
+    }
+    
+    
 }
 
 /* STEP 10 - Declare a varaible app_callbacks of type my_pws_cb and initiate its members to the applications call back functions we developed in steps 8.2 and 9.2. */
@@ -446,6 +461,12 @@ int main(void)
     int blink_status = 0;
     int err;
 
+    // simulate setting values under run time
+    // unix format -> 2025/08/26 at 12:36:00
+    app_data_logs[0] = 1756211760;
+    // two random values packed in order of LSB
+    app_data_logs[1] = (55 << 16) | 25;
+
     LOG_INF("Starting Lesson 4 - Exercise 1 \n");
     init_peripheral_cmds();
 
@@ -503,3 +524,6 @@ K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, simulate_output_water, NULL, NU
 
 K_THREAD_DEFINE(send_data_thread_id3, STACKSIZE, read_soil, NULL, NULL,
                 NULL, 6, 0, 0);
+
+K_THREAD_DEFINE(send_data_thread_id4, STACKSIZE, app_erase_logs, NULL, NULL,
+NULL, PRIORITY, 0, 0);
