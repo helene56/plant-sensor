@@ -46,7 +46,7 @@ typedef uint32_t* (*pump_cb_t)(void);
 /** @brief Callback type for when the sensor_command state is pulled. */
 typedef void (*sensor_command_cb_t)(bool, uint8_t);
 
-typedef uint8_t* (*update_logs_cb_t)(void);
+typedef uint32_t* (*update_logs_cb_t)(void);
 
 /** @brief Callback struct used by the PWS Service. */
 struct my_pws_cb {
