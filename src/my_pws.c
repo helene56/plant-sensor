@@ -31,7 +31,7 @@ static bool notify_calibration_enabled;
 
 static uint32_t pumping_on_arr[PUMP_ON_ARRAY_SIZE];
 static struct my_pws_cb pws_cb;
-static uint32_t data_logs[10];
+static uint32_t data_logs[14];
 
 static void mylbsbc_ccc_mysensor_cfg_changed(const struct bt_gatt_attr *attr,
 											 uint16_t value)

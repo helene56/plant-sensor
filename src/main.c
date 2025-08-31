@@ -47,7 +47,6 @@ LOG_MODULE_REGISTER(Plant_sensor, LOG_LEVEL_INF);
 #define TURN_MOTOR_OFF_INTERVAL 500
 #define PUMP_ON_ARRAY_SIZE 5
 
-// static bool pump_turned_on;
 static uint64_t start_time; // Stores connection start timestamp
 static bool app_pump_state;
 static bool pumping_state;
@@ -68,7 +67,7 @@ static uint32_t *timestamp_ptr = pumping_timestamp_arr;
 int smooth_soil_val = -1;
 struct peripheral_cmd peripheral_cmds[NUM_OF_CMDS];
 
-static uint32_t app_data_logs[10];
+static uint32_t app_data_logs[14];
 
 enum CALIBRATION_STATUSES
 {
@@ -456,16 +455,66 @@ static int init_button(void)
     return err;
 }
 
+// temp function to help sending data logs for testing
+// sends 6 logs for the same date, but 6 different times
+static void simulate_send_log()
+{
+    // simulate setting values under run time
+    // unix format -> 2025/08/26 at 08:36:00
+    app_data_logs[0] = 1756197360;
+    // two random values packed in order of LSB
+    int water_used = 3;
+    int current_temp = 18;
+    app_data_logs[1] = (current_temp << 16) | water_used;
+
+    // 2025/08/26 at 10:36:00
+    app_data_logs[2] = 1756204560;
+    // two random values packed in order of LSB
+    water_used = 1;
+    current_temp = 17;
+    app_data_logs[3] = (current_temp << 16) | water_used;
+
+    // 2025/08/26 at 12:36:00
+    app_data_logs[4] = 1756211760;
+    // two random values packed in order of LSB
+    water_used = 25;
+    current_temp = 23;
+    app_data_logs[5] = (current_temp << 16) | water_used;
+
+    // 2025/08/26 at 15:36:00
+    app_data_logs[6] = 1756222560;
+    // values
+    water_used = 0;
+    current_temp = 25;
+    app_data_logs[7] = (current_temp << 16) | water_used;
+
+    // 2025/08/26 at 18:36:00
+    app_data_logs[8] = 1756233360;
+    // values
+    water_used = 10;
+    current_temp = 19;
+    app_data_logs[9] = (current_temp << 16) | water_used;
+
+    // 2025/08/26 at 20:36:00
+    app_data_logs[10] = 1756240560;
+    // values
+    water_used = 0;
+    current_temp = 18;
+    app_data_logs[11] = (current_temp << 16) | water_used;
+
+}
+
 int main(void)
 {
     int blink_status = 0;
     int err;
 
-    // simulate setting values under run time
-    // unix format -> 2025/08/26 at 12:36:00
-    app_data_logs[0] = 1756211760;
-    // two random values packed in order of LSB
-    app_data_logs[1] = (55 << 16) | 25;
+    // // simulate setting values under run time
+    // // unix format -> 2025/08/26 at 12:36:00
+    // app_data_logs[0] = 1756211760;
+    // // two random values packed in order of LSB
+    // app_data_logs[1] = (55 << 16) | 25;
+    simulate_send_log();
 
     LOG_INF("Starting Lesson 4 - Exercise 1 \n");
     init_peripheral_cmds();
