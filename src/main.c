@@ -67,7 +67,7 @@ static uint32_t *timestamp_ptr = pumping_timestamp_arr;
 int smooth_soil_val = -1;
 struct peripheral_cmd peripheral_cmds[NUM_OF_CMDS];
 
-static uint32_t app_data_logs[14];
+static uint32_t app_data_logs[62];
 
 enum CALIBRATION_STATUSES
 {
@@ -459,48 +459,180 @@ static int init_button(void)
 // sends 6 logs for the same date, but 6 different times
 static void simulate_send_log()
 {
-    // simulate setting values under run time
-    // unix format -> 2025/08/26 at 08:36:00
-    app_data_logs[0] = 1756197360;
-    // two random values packed in order of LSB
-    int water_used = 3;
-    int current_temp = 18;
-    app_data_logs[1] = (current_temp << 16) | water_used;
+    // // simulate setting values under run time
+    // // unix format -> 2025/08/26 at 08:36:00
+    // app_data_logs[0] = 1756197360;
+    // // two random values packed in order of LSB
+    // int water_used = 3;
+    // int current_temp = 18;
+    // app_data_logs[1] = (current_temp << 16) | water_used;
 
-    // 2025/08/26 at 10:36:00
-    app_data_logs[2] = 1756204560;
-    // two random values packed in order of LSB
-    water_used = 1;
-    current_temp = 17;
-    app_data_logs[3] = (current_temp << 16) | water_used;
+    // // 2025/08/26 at 10:36:00
+    // app_data_logs[2] = 1756204560;
+    // // two random values packed in order of LSB
+    // water_used = 1;
+    // current_temp = 17;
+    // app_data_logs[3] = (current_temp << 16) | water_used;
 
-    // 2025/08/26 at 12:36:00
-    app_data_logs[4] = 1756211760;
-    // two random values packed in order of LSB
-    water_used = 25;
-    current_temp = 23;
-    app_data_logs[5] = (current_temp << 16) | water_used;
+    // // 2025/08/26 at 12:36:00
+    // app_data_logs[4] = 1756211760;
+    // // two random values packed in order of LSB
+    // water_used = 25;
+    // current_temp = 23;
+    // app_data_logs[5] = (current_temp << 16) | water_used;
 
-    // 2025/08/26 at 15:36:00
-    app_data_logs[6] = 1756222560;
-    // values
-    water_used = 0;
-    current_temp = 25;
-    app_data_logs[7] = (current_temp << 16) | water_used;
+    // // 2025/08/26 at 15:36:00
+    // app_data_logs[6] = 1756222560;
+    // // values
+    // water_used = 0;
+    // current_temp = 25;
+    // app_data_logs[7] = (current_temp << 16) | water_used;
 
-    // 2025/08/26 at 18:36:00
-    app_data_logs[8] = 1756233360;
-    // values
-    water_used = 10;
-    current_temp = 19;
-    app_data_logs[9] = (current_temp << 16) | water_used;
+    // // 2025/08/26 at 18:36:00
+    // app_data_logs[8] = 1756233360;
+    // // values
+    // water_used = 10;
+    // current_temp = 19;
+    // app_data_logs[9] = (current_temp << 16) | water_used;
 
-    // 2025/08/26 at 20:36:00
-    app_data_logs[10] = 1756240560;
-    // values
-    water_used = 0;
-    current_temp = 18;
-    app_data_logs[11] = (current_temp << 16) | water_used;
+    // // 2025/08/26 at 20:36:00
+    // app_data_logs[10] = 1756240560;
+    // // values
+    // water_used = 0;
+    // current_temp = 18;
+    // app_data_logs[11] = (current_temp << 16) | water_used;
+
+    int i = 0;
+    int water_used;
+    int current_temp;
+
+    // ---------- 2025/08/26 ----------
+    app_data_logs[i++] = 1756197360; // 08:36
+    water_used = 3; current_temp = 18;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756204560; // 10:36
+    water_used = 1; current_temp = 17;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756211760; // 12:36
+    water_used = 25; current_temp = 23;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756222560; // 15:36
+    water_used = 0; current_temp = 25;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756233360; // 18:36
+    water_used = 10; current_temp = 19;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756240560; // 20:36
+    water_used = 0; current_temp = 18;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    // ---------- 2025/08/27 ----------
+    app_data_logs[i++] = 1756283760; // 08:36
+    water_used = 0; current_temp = 17;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756294560; // 11:36
+    water_used = 15; current_temp = 24;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756305360; // 14:36
+    water_used = 0; current_temp = 26;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756316160; // 17:36
+    water_used = 5; current_temp = 21;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    // ---------- 2025/08/28 ----------
+    app_data_logs[i++] = 1756379760; // 09:36
+    water_used = 0; current_temp = 16;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756390560; // 12:36
+    water_used = 30; current_temp = 25;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756401360; // 15:36
+    water_used = 0; current_temp = 27;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756412160; // 18:36
+    water_used = 12; current_temp = 20;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    // ---------- 2025/08/29 ----------
+    app_data_logs[i++] = 1756468560; // 07:36
+    water_used = 2; current_temp = 15;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756482960; // 11:36
+    water_used = 0; current_temp = 23;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756493760; // 14:36
+    water_used = 20; current_temp = 26;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756504560; // 17:36
+    water_used = 0; current_temp = 22;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    // ---------- 2025/08/30 ----------
+    app_data_logs[i++] = 1756557360; // 08:36
+    water_used = 0; current_temp = 18;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756568160; // 11:36
+    water_used = 10; current_temp = 24;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756578960; // 14:36
+    water_used = 0; current_temp = 27;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756589760; // 17:36
+    water_used = 8; current_temp = 21;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    // ---------- 2025/08/31 ----------
+    app_data_logs[i++] = 1756646160; // 07:36
+    water_used = 0; current_temp = 16;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756656960; // 10:36
+    water_used = 5; current_temp = 22;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756667760; // 13:36
+    water_used = 0; current_temp = 26;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756678560; // 16:36
+    water_used = 18; current_temp = 20;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    // ---------- 2025/09/01 ----------
+    app_data_logs[i++] = 1756731360; // 08:36
+    water_used = 0; current_temp = 17;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756742160; // 11:36
+    water_used = 22; current_temp = 23;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756752960; // 14:36
+    water_used = 0; current_temp = 26;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
+    app_data_logs[i++] = 1756763760; // 17:36
+    water_used = 12; current_temp = 21;
+    app_data_logs[i++] = (current_temp << 16) | water_used;
+
 
 }
 
