@@ -14,6 +14,7 @@ target_sources(app PRIVATE
   src/my_pws.c
   src/dht_sensor.c
   src/soil_sensor.c
+  src/logging_sensor.c
 )
 
 # NORDIC SDK APP END

@@ -20,6 +20,7 @@
 #include "dht_sensor.h"
 #include "sensor_config.h"
 #include "soil_sensor.h"
+#include "logging_sensor.h"
 
 static const struct bt_le_adv_param *adv_param = BT_LE_ADV_PARAM(
     (BT_LE_ADV_OPT_CONN |
@@ -68,6 +69,8 @@ int smooth_soil_val = -1;
 struct peripheral_cmd peripheral_cmds[NUM_OF_CMDS];
 
 static uint32_t app_data_logs[62];
+// uint32_t init_time_stamp = 0;
+enum TIME_STAMP_STATUS current_time_stamp = TIME_STAMP_NOT_RECIEVED;
 
 enum CALIBRATION_STATUSES
 {
@@ -209,6 +212,27 @@ static uint32_t* app_update_logs()
     return app_data_logs;
 }
 
+static void app_init_time_stamp(int64_t time_stamp)
+{
+    // set time from recieved time from app
+    // should only do so on start up once
+    if (current_time_stamp == TIME_STAMP_NOT_RECIEVED)
+    {
+        init_time_stamp = time_stamp;
+        current_time_stamp = TIME_STAMP_RECIEVED;
+        LOG_INF("recieved timestamp");
+        int64_t recieved_time = get_unix_timestamp_ms();
+        LOG_INF("time stamp = %lld", recieved_time);
+
+    }
+    else
+    {
+        LOG_INF("timestamp already recieved");
+    }
+    
+    
+}
+
 static void app_erase_logs()
 {
     while (1)
@@ -233,6 +257,7 @@ static struct my_pws_cb app_callbacks = {
     .pump_cb = app_pump_cb,
     .sensor_command_cb = app_sensor_command_cb,
     .update_logs_cb = app_update_logs,
+    .init_time_stamp_cb = app_init_time_stamp
 };
 
 static void button_changed(uint32_t button_state, uint32_t has_changed)

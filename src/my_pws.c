@@ -33,6 +33,8 @@ static uint32_t pumping_on_arr[PUMP_ON_ARRAY_SIZE];
 static struct my_pws_cb pws_cb;
 static uint32_t data_logs[62];
 
+// TODO: i need to have a write handler for my timestamp value coming from the app on start up
+
 static void mylbsbc_ccc_mysensor_cfg_changed(const struct bt_gatt_attr *attr,
 											 uint16_t value)
 {
@@ -127,6 +129,37 @@ static ssize_t write_command(struct bt_conn *conn,
 	return 0;
 }
 
+static ssize_t write_timestamp(struct bt_conn *conn,
+							 const struct bt_gatt_attr *attr,
+							 const void *buf,
+							 uint16_t len, uint16_t offset, uint8_t flags)
+{
+	// if (len != 1U)
+	// {
+	// 	LOG_DBG("Write command: Incorrect data length");
+	// 	return BT_GATT_ERR(BT_ATT_ERR_INVALID_ATTRIBUTE_LEN);
+	// }
+
+	if (offset != 0)
+	{
+		LOG_DBG("Write command: Incorrect data offset");
+		return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
+	}
+
+	if (pws_cb.init_time_stamp_cb)
+	{
+		// Read the received value
+		// int64_t val = *((int64_t *)buf);
+		int64_t val = (int64_t)sys_get_le64(buf);
+		// update initial time stamp
+		pws_cb.init_time_stamp_cb(val);
+
+		return len;
+	}
+
+	return 0;
+}
+
 /* Plant Weather Service Declaration */
 /* STEP 2 - Create and add the MY PWS service to the Bluetooth LE stack */
 BT_GATT_SERVICE_DEFINE(my_pws_svc, BT_GATT_PRIMARY_SERVICE(BT_UUID_PWS),
@@ -157,6 +190,9 @@ BT_GATT_SERVICE_DEFINE(my_pws_svc, BT_GATT_PRIMARY_SERVICE(BT_UUID_PWS),
 						// 
 						BT_GATT_CHARACTERISTIC(BT_UUID_PWS_LOG, BT_GATT_CHRC_READ,
 											  BT_GATT_PERM_READ, read_log, NULL, data_logs),
+						// time stamp write handler
+						BT_GATT_CHARACTERISTIC(BT_UUID_PWS_TIMESTAMP,
+											  BT_GATT_CHRC_WRITE, BT_GATT_PERM_WRITE, NULL, write_timestamp, NULL)
 
 );
 /* A function to register application callbacks for the Pump and Temperature characteristics  */
@@ -167,6 +203,7 @@ int my_pws_init(struct my_pws_cb *callbacks)
 		pws_cb.pump_cb = callbacks->pump_cb;
 		pws_cb.sensor_command_cb = callbacks->sensor_command_cb;
 		pws_cb.update_logs_cb = callbacks->update_logs_cb;
+		pws_cb.init_time_stamp_cb = callbacks->init_time_stamp_cb;
 	}
 
 	return 0;

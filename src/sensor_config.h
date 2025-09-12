@@ -46,4 +46,10 @@ typedef struct
 
 void init_peripheral_cmds();
 
+enum TIME_STAMP_STATUS
+{
+    TIME_STAMP_NOT_RECIEVED,
+    TIME_STAMP_RECIEVED
+};
+
 #endif // SENSOR_CONFIG_H
