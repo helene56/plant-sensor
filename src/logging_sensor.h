@@ -11,5 +11,6 @@ struct plant_log_data
 };
 
 int64_t get_unix_timestamp_ms();
+void init_timer();
 
 #endif /* LOGGING_SENSOR */

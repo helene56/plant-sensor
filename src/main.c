@@ -223,6 +223,7 @@ static void app_init_time_stamp(int64_t time_stamp)
         LOG_INF("recieved timestamp");
         int64_t recieved_time = get_unix_timestamp_ms();
         LOG_INF("time stamp = %lld", recieved_time);
+        init_timer();
 
     }
     else
