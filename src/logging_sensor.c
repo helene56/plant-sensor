@@ -52,6 +52,36 @@ void init_timer()
     // 1. get the current time; example currently 12:32
     // 2. calculate the next time it is 8:00, duration 
     // 3. set period to the next time it is 8:00, so again in 24 hours
-    k_timer_start(&my_timer, K_SECONDS(120), K_SECONDS(120));
+
+    // test with minutes
+    int current_min = get_current_min_s(get_unix_timestamp_ms());
+    int log_min = 10; // at 40 min
+    // how long till current_min is at log_min?
+    int log_duration = get_log_duration_min(current_min, log_min);
+    int log_period = 2; // next log should happen 2 min from 40 min
+    LOG_INF("Current minutes is: %d", current_min);
+    LOG_INF("Time till first timer setoff: %d", log_duration);
+    LOG_INF("Time for going of next time: %d", log_period);
+    k_timer_start(&my_timer, K_MINUTES(log_duration), K_MINUTES(log_period));
 }
 
+// temp function, should return the hour
+int get_current_min_s(int64_t time_ms)
+{
+    // convert time_ms to s
+    int64_t time_s = time_ms /= 1000;
+    return (int)((time_s % 3600) / 60);
+}
+// temp, should be for the hour instead
+int get_log_duration_min(int current_time_min, int log_time_min)
+{
+    if (current_time_min <= log_time_min)
+    {
+        return log_time_min - current_time_min;
+    }
+    else
+    {
+        return 60 - current_time_min + log_time_min;
+    }
+    
+}
