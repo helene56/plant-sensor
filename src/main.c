@@ -219,6 +219,7 @@ static void app_init_time_stamp(int64_t time_stamp)
     if (current_time_stamp == TIME_STAMP_NOT_RECIEVED)
     {
         init_time_stamp = time_stamp;
+        init_uptime = k_uptime_get();
         current_time_stamp = TIME_STAMP_RECIEVED;
         LOG_INF("recieved timestamp");
         int64_t recieved_time = get_unix_timestamp_ms();
