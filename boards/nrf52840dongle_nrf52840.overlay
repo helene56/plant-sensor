@@ -3,15 +3,52 @@
  *
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
-
+// TODO change pins to pins used by the dongle
 / {
 	chosen {
 		zephyr,console = &cdc_acm_uart0;
 	};
+
+	dht0: dht_0 {
+        status = "okay";
+        compatible = "aosong,dht";
+        dio-gpios = <&gpio0 28 GPIO_ACTIVE_LOW>;
+        dht22;
+    };
+
+    zephyr,user {
+        io-channels = <&adc 0>;
+    };
+
+    aliases {
+        pump0 = &mypump0;
+    };
+
+    pumps {
+        compatible = "gpio-leds";
+        mypump0: pump_0 {
+            gpios = <&gpio1 7 GPIO_ACTIVE_HIGH>;
+        };
+    };
 };
 
 &zephyr_udc0 {
 	cdc_acm_uart0: cdc_acm_uart0 {
 		compatible = "zephyr,cdc-acm-uart";
 	};
+};
+
+
+&adc {
+    #address-cells = <1>;
+    #size-cells = <0>;
+    status = "okay";
+    channel@0 {
+        reg = <0>;
+        zephyr,gain = "ADC_GAIN_1_5";
+        zephyr,reference = "ADC_REF_INTERNAL";
+        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+        zephyr,input-positive = <NRF_SAADC_AIN0>; /* P0.02 for nRF52xx, P0.04 for nRF5340 */
+        zephyr,resolution = <12>;
+    };
 };
