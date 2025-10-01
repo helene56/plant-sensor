@@ -208,8 +208,9 @@ static uint32_t* app_update_logs()
     // app_data_logs[0] = 1756211760;
     // // two random values packed in order of LSB
     // app_data_logs[1] = (55 << 16) | 25;
-
-    return app_data_logs;
+    // TODO: only send new data
+    // also send the size of the new data
+    return data_logs;
 }
 
 static void app_init_time_stamp(int64_t time_stamp)
@@ -224,7 +225,7 @@ static void app_init_time_stamp(int64_t time_stamp)
         LOG_INF("recieved timestamp");
         int64_t recieved_time = get_unix_timestamp_ms();
         LOG_INF("time stamp = %lld", recieved_time);
-        init_timer();
+        // init_timer();
 
     }
     else
@@ -240,13 +241,17 @@ static void app_erase_logs()
     while (1)
     {
         // TODO: move a pointer to the next aviailbe space instead
+        // keep the logic of clearing the logs to 0 for debugging purposes?
         if (peripheral_cmds[CLEAR_LOG].enabled)
         {
-            for (int i = 0; i<10;++i)
+            for (int i = 0; i<STORED_LOGS;++i)
             {
                 app_data_logs[i] = 0;
             }
             peripheral_cmds[CLEAR_LOG].enabled = false;
+            // reset array to start
+            // set new
+            ptr_data_logs = data_logs;
         }
         k_sleep(K_MSEC(100));
     }
@@ -305,6 +310,38 @@ void send_data_thread(void)
         {
             k_sleep(K_MSEC(100));
         }
+    }
+}
+
+void start_pump()
+{
+    static bool set_start_time = false;
+    static int64_t start_time_pump;
+    while(1)
+    {
+        if (pump_on)
+        {
+            if (!set_start_time)
+            {
+                gpio_pin_set_dt(&pump, 1);
+                start_time_pump = k_uptime_get();
+                set_start_time = true;
+            }
+            else
+            {
+                int64_t elapsed_ms = k_uptime_get() - start_time_pump;
+                // should only be on for 20 sec.
+                if (elapsed_ms >= 20000)
+                {
+                    gpio_pin_set_dt(&pump, 0);
+                    LOG_INF("stop watering..");
+                    pump_on = false;
+                    set_start_time = false;
+
+                }
+            }
+        }
+        k_sleep(K_MSEC(100));
     }
 }
 
@@ -399,6 +436,8 @@ void update_state(CalibrationContext *ctx)
             peripheral_cmds[SOIL_CAL].enabled = false;
             printk("Calibration complete!\n");
             my_pws_send_calibration_notify((int8_t)IDEAL_FINISH);
+            // ready to start the timer which logs
+            init_timer();
             print_once = true;
 
         }
@@ -673,7 +712,7 @@ int main(void)
     // app_data_logs[0] = 1756211760;
     // // two random values packed in order of LSB
     // app_data_logs[1] = (55 << 16) | 25;
-    simulate_send_log();
+    // simulate_send_log();
 
     LOG_INF("Starting Lesson 4 - Exercise 1 \n");
     init_peripheral_cmds();
@@ -727,7 +766,7 @@ K_THREAD_DEFINE(send_data_thread_id, STACKSIZE, send_data_thread, NULL, NULL,
 K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, main_calibrate_thread, &ctx, NULL,
                 NULL, PRIORITY, 0, 0);
 
-K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, simulate_output_water, NULL, NULL,
+K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, start_pump, NULL, NULL,
                 NULL, 8, 0, 0);
 
 K_THREAD_DEFINE(send_data_thread_id3, STACKSIZE, read_soil, NULL, NULL,
