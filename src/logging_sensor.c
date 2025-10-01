@@ -8,11 +8,16 @@
 LOG_MODULE_DECLARE(Plant_sensor);
 
 #define LOG_PERIOD_MIN 120 // log every 2 hours
-#define STORED_LOGS 62
+#define TEST_LOG_PERIOD_MIN 1 // test logging every 1 min
+// #define STORED_LOGS 62
 int64_t init_time_stamp = 0;
 int64_t init_uptime = 0;
-static struct plant_log_data data_logs[STORED_LOGS] = {0};
-static struct plant_log_data *ptr_data_logs = data_logs;
+bool pump_on = false;
+bool test_pump = true;
+uint32_t data_logs[STORED_LOGS] = {0};
+uint32_t *ptr_data_logs = data_logs;
+static uint32_t *ptr_end_data_logs = data_logs + STORED_LOGS;
+int current_log_size = 0;
 // send 1. date, 2. water_used, 3. temperature, 4. soil moisture (own level system?)
 // evaluate if pump should turn on based on this info.
 
@@ -28,12 +33,15 @@ struct plant_log_data get_sensor_data()
     read_smooth_soil();
     int moisture_level = mv_to_percentage(smooth_soil_val);
     int water_used = 0;
-    if (moisture_level < 30) // if below 30%
+    if (moisture_level < 30 || test_pump) // if below 30%
     {
         LOG_INF("turn pump on");
+        pump_on = true;
         water_used = 10; // 10 ml
+        // TODO: might be interesting to send this info to the app so I know at what time it went below 30
     }
-    return (struct plant_log_data){.time_stamp = get_unix_timestamp_ms(),
+    // TODO: unix time is converted into seconds here. need to consider if it might be better to send as ms?
+    return (struct plant_log_data){.time_stamp = (uint32_t) (get_unix_timestamp_ms() / 1000),
                                    .env_readings = env_readings,
                                    .soil_moisture_level = moisture_level,
                                    .water_used = water_used};
@@ -42,11 +50,18 @@ struct plant_log_data get_sensor_data()
 void log_data(struct plant_log_data log)
 {
     // log data
-    *ptr_data_logs = log;
+    if (ptr_data_logs < ptr_end_data_logs)
+    {
+
+        *ptr_data_logs = log.time_stamp;
+        ptr_data_logs++;
+        *ptr_data_logs = (log.env_readings.temp << 16) | log.water_used;
+        ptr_data_logs++;
+    }
+    
 }
 
-// temp function till i can get a rtc module
-// on start up i need to request the current unix date
+
 int64_t get_unix_timestamp_ms()
 {
 
@@ -58,6 +73,10 @@ void my_work_handler(struct k_work *work)
 {
     /* do the processing that needs to be done periodically */
     LOG_INF("Timer going off!");
+    int64_t recieved_time = get_unix_timestamp_ms();
+    LOG_INF("time stamp at timer = %lld", recieved_time);
+    struct plant_log_data current_log = get_sensor_data();
+    log_data(current_log);
 }
 
 K_WORK_DEFINE(my_work, my_work_handler);
@@ -71,5 +90,5 @@ K_TIMER_DEFINE(my_timer, my_timer_handler, NULL);
 void init_timer()
 {
     LOG_INF("Starting first log");
-    k_timer_start(&my_timer, K_MINUTES(0), K_MINUTES(LOG_PERIOD_MIN));
+    k_timer_start(&my_timer, K_MINUTES(0), K_MINUTES(TEST_LOG_PERIOD_MIN));
 }
