@@ -31,7 +31,7 @@ static bool notify_calibration_enabled;
 
 static uint32_t pumping_on_arr[PUMP_ON_ARRAY_SIZE];
 static struct my_pws_cb pws_cb;
-static uint32_t data_logs[62];
+static uint32_t pws_data_logs[62];
 
 // TODO: i need to have a write handler for my timestamp value coming from the app on start up
 
@@ -80,8 +80,10 @@ static ssize_t read_log(struct bt_conn *conn, const struct bt_gatt_attr *attr, v
 	{
 		// Call the application callback function to update the get the current value of the pump
 		const uint32_t *log_values = pws_cb.update_logs_cb();
-		memcpy(data_logs, log_values, sizeof(data_logs));
-		return bt_gatt_attr_read(conn, attr, buf, len, offset, value, sizeof(data_logs));
+		memcpy(pws_data_logs, log_values, sizeof(pws_data_logs));
+		// TODO: set size of to only be the new data i want to send and the log_values should 
+		// naturally be the start of the array where the new values are defined
+		return bt_gatt_attr_read(conn, attr, buf, len, offset, value, sizeof(pws_data_logs));
 	}
 
 	return 0;
@@ -189,7 +191,7 @@ BT_GATT_SERVICE_DEFINE(my_pws_svc, BT_GATT_PRIMARY_SERVICE(BT_UUID_PWS),
 
 						// 
 						BT_GATT_CHARACTERISTIC(BT_UUID_PWS_LOG, BT_GATT_CHRC_READ,
-											  BT_GATT_PERM_READ, read_log, NULL, data_logs),
+											  BT_GATT_PERM_READ, read_log, NULL, pws_data_logs),
 						// time stamp write handler
 						BT_GATT_CHARACTERISTIC(BT_UUID_PWS_TIMESTAMP,
 											  BT_GATT_CHRC_WRITE, BT_GATT_PERM_WRITE, NULL, write_timestamp, NULL)
