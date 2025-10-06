@@ -40,7 +40,8 @@ typedef struct
 {
     enum PUMP_STATE pump_state;
     enum SOIL_SENSOR_STATE current_soil_state;
-    bool soil_moisture_calibrated;
+    bool soil_moisture_ready_to_calibrate; // to tell whenever each soil_sensor_state has been completed.
+    bool soil_moisture_sensor_enabled; // once soil moisture has been calibrated, it is now ready to submit readings.
     bool pump_finished;
 } CalibrationContext;
 
