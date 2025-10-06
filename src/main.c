@@ -15,7 +15,7 @@
 
 #include <dk_buttons_and_leds.h>
 #include <zephyr/drivers/gpio.h>
-/* STEP 7 - Include the header file of MY LBS customer service */
+
 #include "my_pws.h"
 #include "dht_sensor.h"
 #include "sensor_config.h"
@@ -40,36 +40,28 @@ LOG_MODULE_REGISTER(Plant_sensor, LOG_LEVEL_INF);
 #define STACKSIZE 2048
 #define PRIORITY 7
 
-#define TEMPERATURE_BUTTON DK_BTN1_MSK // Should be replaced with a sensor, temp button
-#define PUMP_BUTTON DK_BTN2_MSK        // Should be replaced with a pump, temp button
-
 #define RUN_LED_BLINK_INTERVAL 1000
 #define NOTIFY_INTERVAL 5 * 1000 // dont read too often, to avoid sensor from heating it self up
 #define TURN_MOTOR_OFF_INTERVAL 500
-#define PUMP_ON_ARRAY_SIZE 5
 
 static uint64_t start_time; // Stores connection start timestamp
-static bool app_pump_state;
-static bool pumping_state;
-static uint16_t sensor_value_holder[SENSOR_ARRAY_SIZE] = {0};
+static uint16_t plant_env_readings[SENSOR_ARRAY_SIZE] = {0};
 static bool print_once = true;
 static CalibrationContext ctx = {
     .pump_finished = false,
     .pump_state = PUMP_OFF,
-    .soil_moisture_calibrated = false};
+    .soil_moisture_ready_to_calibrate = false,
+    .soil_moisture_sensor_enabled = false};
 
 static const struct gpio_dt_spec pump = GPIO_DT_SPEC_GET(DT_ALIAS(pump0), gpios);
 
-static uint32_t pumping_on_arr[PUMP_ON_ARRAY_SIZE] = {0};
-static uint32_t pumping_timestamp_arr[PUMP_ON_ARRAY_SIZE] = {0};
-static uint32_t *pump_ptr = pumping_on_arr;
-static uint32_t *pump_end = pumping_on_arr + PUMP_ON_ARRAY_SIZE;
-static uint32_t *timestamp_ptr = pumping_timestamp_arr;
-int smooth_soil_val = -1;
+int smooth_soil_val = 0;
 struct peripheral_cmd peripheral_cmds[NUM_OF_CMDS];
 
+bool start_soil_sensor = false;
+
 static uint32_t app_data_logs[62];
-// uint32_t init_time_stamp = 0;
+
 enum TIME_STAMP_STATUS current_time_stamp = TIME_STAMP_NOT_RECIEVED;
 
 enum CALIBRATION_STATUSES
@@ -146,63 +138,12 @@ void init_peripheral_cmds()
     }
 }
 
-static void simulate_output_water(void)
-{
-    while (1)
-    {
-        if (pumping_state)
-        {
-            // means the soil capacitor sensor said - soil is dry!
-            // keep pump on until signal back from rain drop sensor at bottom of pot
-            // add failsafe maybe after 1 min. it should turn off..
-            int64_t elapsed_ms = k_uptime_get() - start_time;
-            if (simulate_rain_drop_sensor() || elapsed_ms >= 60000)
-            {
-                start_time = k_uptime_get();
-                pumping_state = !pumping_state;
-
-                // set value in pumping array to the elapsed ms
-                if (pump_ptr < pump_end)
-                {
-                    *pump_ptr = (uint32_t)elapsed_ms;
-                    *timestamp_ptr = (uint32_t)k_uptime_get();
-
-                    ++pump_ptr;
-                    ++timestamp_ptr;
-                }
-                else
-                {
-                    // reinitialize array
-                    memset(pumping_on_arr, 0, sizeof(pumping_on_arr));
-                    memset(pumping_timestamp_arr, 0, sizeof(pumping_timestamp_arr));
-                    // set pointers back
-                    pump_ptr = pumping_on_arr;
-                    timestamp_ptr = pumping_timestamp_arr;
-                }
-
-                // LOG_INF("Printing uptime:\n");
-                // LOG_INF("milliseconds: %lld", k_uptime_get());
-            }
-        }
-        k_sleep(K_MSEC(TURN_MOTOR_OFF_INTERVAL));
-    }
-}
-
-static uint32_t *app_pump_cb(void)
-{
-    // TODO:
-    // 1 make an array to store how long the pump stayed on, set max size of 5
-    // 2 if no more space in array, reset (move pointer back and set all values to 0)
-    // 3 update functions to send uint32_t values
-    return pumping_on_arr;
-}
-
 static void app_sensor_command_cb(bool state, uint8_t id)
 {
     peripheral_cmds[id].enabled = state;
 }
 
-static uint32_t* app_update_logs()
+static uint32_t *app_update_logs()
 {
     // // unix format -> 2025/08/26 at 12:36:00
     // app_data_logs[0] = 1756211760;
@@ -226,14 +167,11 @@ static void app_init_time_stamp(int64_t time_stamp)
         int64_t recieved_time = get_unix_timestamp_ms();
         LOG_INF("time stamp = %lld", recieved_time);
         // init_timer();
-
     }
     else
     {
         LOG_INF("timestamp already recieved");
     }
-    
-    
 }
 
 static void app_erase_logs()
@@ -244,7 +182,7 @@ static void app_erase_logs()
         // keep the logic of clearing the logs to 0 for debugging purposes?
         if (peripheral_cmds[CLEAR_LOG].enabled)
         {
-            for (int i = 0; i<STORED_LOGS;++i)
+            for (int i = 0; i < STORED_LOGS; ++i)
             {
                 app_data_logs[i] = 0;
             }
@@ -255,36 +193,17 @@ static void app_erase_logs()
         }
         k_sleep(K_MSEC(100));
     }
-    
-    
 }
 
 /* STEP 10 - Declare a varaible app_callbacks of type my_pws_cb and initiate its members to the applications call back functions we developed in steps 8.2 and 9.2. */
 static struct my_pws_cb app_callbacks = {
-    .pump_cb = app_pump_cb,
     .sensor_command_cb = app_sensor_command_cb,
     .update_logs_cb = app_update_logs,
-    .init_time_stamp_cb = app_init_time_stamp
-};
+    .init_time_stamp_cb = app_init_time_stamp};
 
-static void button_changed(uint32_t button_state, uint32_t has_changed)
+void send_data_thread(void *p1)
 {
-    if (has_changed & PUMP_BUTTON)
-    {
-        uint32_t user_button_state = button_state & PUMP_BUTTON;
-        app_pump_state = user_button_state ? true : false;
-        if (app_pump_state)
-        {
-            // if button clicked, turn pump on, and again turn off
-            pumping_state = !pumping_state;
-            if (pumping_state)
-                start_time = k_uptime_get();
-        }
-    }
-}
-
-void send_data_thread(void)
-{
+    CalibrationContext *ctx = (CalibrationContext *)p1;
     while (1)
     {
         if (peripheral_cmds[TEMPERATURE_HUMIDITY].enabled)
@@ -292,17 +211,30 @@ void send_data_thread(void)
             /* Send notification, the function sends notifications only if a client is subscribed */
             struct air_metrics env_readings = read_temp_humidity();
             // send notification for temp/humidity
-            sensor_value_holder[0] = env_readings.temp;
-            sensor_value_holder[1] = env_readings.humidity;
-            // maybe add a range where the value doesnt change? the mv measured varies even if water level is not changing
-            sensor_value_holder[2] = soil_moisture_calibrated ? smooth_soil_val : 0;
-            if (smooth_soil_val != -1)
+            plant_env_readings[0] = env_readings.temp;
+            plant_env_readings[1] = env_readings.humidity;
+          
+            if (ctx->soil_moisture_sensor_enabled)
             {
-                LOG_INF("percentage: %d\n", mv_to_percentage(smooth_soil_val));
-                smooth_soil_val = -1;
+                int stable_soil_reading = read_smooth_soil();
+                if (stable_soil_reading)
+                {
+                    plant_env_readings[2] = mv_to_percentage(smooth_soil_val);
+                }
+            }
+            else
+            {
+                plant_env_readings[2] = -1;
             }
 
-            my_pws_send_temperature_notify(sensor_value_holder);
+            // maybe add a range where the value doesnt change? the mv measured varies even if water level is not changing
+            // plant_env_readings[2] = ctx->soil_moisture_sensor_enabled ? mv_to_percentage(smooth_soil_val) : 0;
+            if (ctx->soil_moisture_sensor_enabled)
+            {
+                LOG_INF("percentage: %d of soil moisture", mv_to_percentage(smooth_soil_val));
+            }
+
+            my_pws_send_temperature_notify(plant_env_readings);
 
             k_sleep(K_MSEC(NOTIFY_INTERVAL));
         }
@@ -317,7 +249,7 @@ void start_pump()
 {
     static bool set_start_time = false;
     static int64_t start_time_pump;
-    while(1)
+    while (1)
     {
         if (pump_on)
         {
@@ -337,7 +269,6 @@ void start_pump()
                     LOG_INF("stop watering..");
                     pump_on = false;
                     set_start_time = false;
-
                 }
             }
         }
@@ -397,49 +328,48 @@ void update_state(CalibrationContext *ctx)
     switch (ctx->current_soil_state)
     {
     case DRY:
-        if (peripheral_cmds[SOIL_CAL].enabled && ctx->soil_moisture_calibrated)
+        if (peripheral_cmds[SOIL_CAL].enabled && ctx->soil_moisture_ready_to_calibrate)
         {
             ctx->current_soil_state = START_PUMP;
             LOG_INF("moisture sensor calibrated in dry soil\n");
             my_pws_send_calibration_notify((int8_t)DRY_FINISH);
             LOG_INF("waiting for user to start pump..");
-            // peripheral_cmds[SOIL_CAL].enabled = false;
-            // ctx->soil_moisture_calibrated = false;
         }
         break;
     case START_PUMP:
         if (ctx->pump_finished)
         {
             ctx->current_soil_state = WET;
-            ctx->soil_moisture_calibrated = false;
+            ctx->soil_moisture_ready_to_calibrate = false;
             LOG_INF("pump finished. starting wet calibration.");
         }
+        break;
     case WET:
-        if (ctx->pump_finished && ctx->soil_moisture_calibrated)
+        if (ctx->pump_finished && ctx->soil_moisture_ready_to_calibrate)
         {
             ctx->current_soil_state = IDEAL;
             LOG_INF("moisture sensor calibrated in wet soil\n");
             // moisture sensor should be calibrated
             ctx->pump_finished = false;
             // reset to make it possible to redo calibration
-            ctx->soil_moisture_calibrated = false;
+            ctx->soil_moisture_ready_to_calibrate = false;
         }
         break;
     case IDEAL:
-        if (ctx->soil_moisture_calibrated)
+        if (ctx->soil_moisture_ready_to_calibrate)
         {
             printk("ideal soil finish\n");
             // resetting
             ctx->current_soil_state = DRY;
             // TODO: set to true to enable reading from sensor at an interval?
-            ctx->soil_moisture_calibrated = false;
+            ctx->soil_moisture_ready_to_calibrate = false;
             peripheral_cmds[SOIL_CAL].enabled = false;
             printk("Calibration complete!\n");
             my_pws_send_calibration_notify((int8_t)IDEAL_FINISH);
             // ready to start the timer which logs
             init_timer();
             print_once = true;
-
+            ctx->soil_moisture_sensor_enabled = true;
         }
         break;
     }
@@ -449,7 +379,7 @@ void update_state(CalibrationContext *ctx)
 void main_calibrate_thread(void *p1)
 {
     CalibrationContext *ctx = (CalibrationContext *)p1;
-    
+
     while (1)
     {
         if (peripheral_cmds[SOIL_CAL].enabled)
@@ -461,22 +391,6 @@ void main_calibrate_thread(void *p1)
             }
             do_calibration_step(ctx);
             update_state(ctx);
-        }
-        k_sleep(K_MSEC(100));
-    }
-}
-
-void read_soil(void)
-{
-    while (1)
-    {
-        if (soil_moisture_calibrated)
-        {
-            read_smooth_soil();
-        }
-        if (smooth_soil_val != -1)
-        {
-            k_sleep(K_MSEC(1500));
         }
         k_sleep(K_MSEC(100));
     }
@@ -508,211 +422,10 @@ struct bt_conn_cb connection_callbacks = {
     .recycled = recycled_cb,
 };
 
-static int init_button(void)
-{
-    int err;
-
-    err = dk_buttons_init(button_changed);
-    if (err)
-    {
-        printk("Cannot init buttons (err: %d)\n", err);
-    }
-
-    return err;
-}
-
-// temp function to help sending data logs for testing
-// sends 6 logs for the same date, but 6 different times
-static void simulate_send_log()
-{
-    // // simulate setting values under run time
-    // // unix format -> 2025/08/26 at 08:36:00
-    // app_data_logs[0] = 1756197360;
-    // // two random values packed in order of LSB
-    // int water_used = 3;
-    // int current_temp = 18;
-    // app_data_logs[1] = (current_temp << 16) | water_used;
-
-    // // 2025/08/26 at 10:36:00
-    // app_data_logs[2] = 1756204560;
-    // // two random values packed in order of LSB
-    // water_used = 1;
-    // current_temp = 17;
-    // app_data_logs[3] = (current_temp << 16) | water_used;
-
-    // // 2025/08/26 at 12:36:00
-    // app_data_logs[4] = 1756211760;
-    // // two random values packed in order of LSB
-    // water_used = 25;
-    // current_temp = 23;
-    // app_data_logs[5] = (current_temp << 16) | water_used;
-
-    // // 2025/08/26 at 15:36:00
-    // app_data_logs[6] = 1756222560;
-    // // values
-    // water_used = 0;
-    // current_temp = 25;
-    // app_data_logs[7] = (current_temp << 16) | water_used;
-
-    // // 2025/08/26 at 18:36:00
-    // app_data_logs[8] = 1756233360;
-    // // values
-    // water_used = 10;
-    // current_temp = 19;
-    // app_data_logs[9] = (current_temp << 16) | water_used;
-
-    // // 2025/08/26 at 20:36:00
-    // app_data_logs[10] = 1756240560;
-    // // values
-    // water_used = 0;
-    // current_temp = 18;
-    // app_data_logs[11] = (current_temp << 16) | water_used;
-
-    int i = 0;
-    int water_used;
-    int current_temp;
-
-    // ---------- 2025/08/26 ----------
-    app_data_logs[i++] = 1756197360; // 08:36
-    water_used = 3; current_temp = 18;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756204560; // 10:36
-    water_used = 1; current_temp = 17;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756211760; // 12:36
-    water_used = 25; current_temp = 23;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756222560; // 15:36
-    water_used = 0; current_temp = 25;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756233360; // 18:36
-    water_used = 10; current_temp = 19;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756240560; // 20:36
-    water_used = 0; current_temp = 18;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    // ---------- 2025/08/27 ----------
-    app_data_logs[i++] = 1756283760; // 08:36
-    water_used = 0; current_temp = 17;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756294560; // 11:36
-    water_used = 15; current_temp = 24;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756305360; // 14:36
-    water_used = 0; current_temp = 26;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756316160; // 17:36
-    water_used = 5; current_temp = 21;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    // ---------- 2025/08/28 ----------
-    app_data_logs[i++] = 1756379760; // 09:36
-    water_used = 0; current_temp = 16;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756390560; // 12:36
-    water_used = 30; current_temp = 25;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756401360; // 15:36
-    water_used = 0; current_temp = 27;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756412160; // 18:36
-    water_used = 12; current_temp = 20;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    // ---------- 2025/08/29 ----------
-    app_data_logs[i++] = 1756468560; // 07:36
-    water_used = 2; current_temp = 15;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756482960; // 11:36
-    water_used = 0; current_temp = 23;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756493760; // 14:36
-    water_used = 20; current_temp = 26;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756504560; // 17:36
-    water_used = 0; current_temp = 22;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    // ---------- 2025/08/30 ----------
-    app_data_logs[i++] = 1756557360; // 08:36
-    water_used = 0; current_temp = 18;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756568160; // 11:36
-    water_used = 10; current_temp = 24;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756578960; // 14:36
-    water_used = 0; current_temp = 27;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756589760; // 17:36
-    water_used = 8; current_temp = 21;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    // ---------- 2025/08/31 ----------
-    app_data_logs[i++] = 1756646160; // 07:36
-    water_used = 0; current_temp = 16;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756656960; // 10:36
-    water_used = 5; current_temp = 22;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756667760; // 13:36
-    water_used = 0; current_temp = 26;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756678560; // 16:36
-    water_used = 18; current_temp = 20;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    // ---------- 2025/09/01 ----------
-    app_data_logs[i++] = 1756731360; // 08:36
-    water_used = 0; current_temp = 17;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756742160; // 11:36
-    water_used = 22; current_temp = 23;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756752960; // 14:36
-    water_used = 0; current_temp = 26;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-    app_data_logs[i++] = 1756763760; // 17:36
-    water_used = 12; current_temp = 21;
-    app_data_logs[i++] = (current_temp << 16) | water_used;
-
-
-}
-
 int main(void)
 {
     int blink_status = 0;
     int err;
-
-    // // simulate setting values under run time
-    // // unix format -> 2025/08/26 at 12:36:00
-    // app_data_logs[0] = 1756211760;
-    // // two random values packed in order of LSB
-    // app_data_logs[1] = (55 << 16) | 25;
-    // simulate_send_log();
 
     LOG_INF("Starting Lesson 4 - Exercise 1 \n");
     init_peripheral_cmds();
@@ -721,13 +434,6 @@ int main(void)
     if (err)
     {
         LOG_ERR("LEDs init failed (err %d)\n", err);
-        return -1;
-    }
-
-    err = init_button();
-    if (err)
-    {
-        printk("Button init failed (err %d)\n", err);
         return -1;
     }
 
@@ -760,7 +466,7 @@ int main(void)
     }
 }
 
-K_THREAD_DEFINE(send_data_thread_id, STACKSIZE, send_data_thread, NULL, NULL,
+K_THREAD_DEFINE(send_data_thread_id, STACKSIZE, send_data_thread, &ctx, NULL,
                 NULL, 8, 0, 0);
 
 K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, main_calibrate_thread, &ctx, NULL,
@@ -769,8 +475,8 @@ K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, main_calibrate_thread, &ctx, NU
 K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, start_pump, NULL, NULL,
                 NULL, 8, 0, 0);
 
-K_THREAD_DEFINE(send_data_thread_id3, STACKSIZE, read_soil, NULL, NULL,
-                NULL, 6, 0, 0);
+// K_THREAD_DEFINE(send_data_thread_id3, STACKSIZE, read_soil, &ctx, NULL,
+//                 NULL, 6, 0, 0);
 
 K_THREAD_DEFINE(send_data_thread_id4, STACKSIZE, app_erase_logs, NULL, NULL,
-NULL, PRIORITY, 0, 0);
+                NULL, PRIORITY, 0, 0);
