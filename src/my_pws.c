@@ -38,7 +38,7 @@ static uint32_t pws_data_logs[62];
 static void mylbsbc_ccc_mysensor_cfg_changed(const struct bt_gatt_attr *attr,
 											 uint16_t value)
 {
-	notify_temperature_enabled = (value == BT_GATT_CCC_NOTIFY);
+	notify_temperature_enabled = (value == BT_GATT_CCC_NOTIFY); // and gives humidity..and also currently sending the soil moisture smooth data..
 }
 
 static void mylbsbc_ccc_calibration_cfg_changed(const struct bt_gatt_attr *attr,
@@ -47,7 +47,7 @@ static void mylbsbc_ccc_calibration_cfg_changed(const struct bt_gatt_attr *attr,
 	notify_calibration_enabled = (value == BT_GATT_CCC_NOTIFY);
 }
 
-
+// TODO: remove, but also update the attrs numbering otherwise will not work anymore
 static ssize_t read_pump(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf,
 						 uint16_t len, uint16_t offset)
 {

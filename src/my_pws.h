@@ -18,6 +18,8 @@ extern "C" {
 #define BT_UUID_PWS_VAL BT_UUID_128_ENCODE(0x0f956141, 0x6b9c, 0x4a41, 0xa6df, 0x977ac4b99d78)
 
 /** @brief Temperature Characteristic UUID. */
+// TODO: should probably rename this uuid, as it sends temp and humidity, probably also a good idea to send other infos..
+// rename to environment readings?
 #define BT_UUID_PWS_TEMPERATURE_VAL                                                                     \
 	BT_UUID_128_ENCODE(0x0f956142, 0x6b9c, 0x4a41, 0xa6df, 0x977ac4b99d78)
 
