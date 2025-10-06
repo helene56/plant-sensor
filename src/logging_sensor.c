@@ -33,7 +33,10 @@ struct plant_log_data get_sensor_data()
     read_smooth_soil();
     int moisture_level = mv_to_percentage(smooth_soil_val);
     int water_used = 0;
-    if (moisture_level < 30 || test_pump) // if below 30%
+    // TODO: it takes a while for the sensor to register the moisture
+    // but this should not be a problem with a logging every 2 hours..
+    // but the data readings might not have been stabilized yet.. smooth_soil_val is just the latest reading.
+    if (moisture_level < 30) // if below 30%
     {
         LOG_INF("turn pump on");
         pump_on = true;
