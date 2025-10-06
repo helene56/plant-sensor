@@ -12,27 +12,17 @@ LOG_MODULE_DECLARE(Plant_sensor);
 
 #define SAMPLE_SIZE 200
 #define STABLE_SAMPLE_SIZE 99
-#define MOISTURE_READ_SIZE 100
+#define MOISTURE_READ_SIZE 5
 #define MAX_TOLERANCE 15
-#define MINUTE_WAIT_TIME 1 // TODO: TEMP VALUE, should be initialized by central over BLE
-#define SECONDS_WAIT_TIME 10 // TODO: temp value, only for testing 
+#define MINUTE_WAIT_TIME 1   // TODO: TEMP VALUE, should be initialized by central over BLE
+#define SECONDS_WAIT_TIME 10 // TODO: temp value, only for testing
 #define IDEAL_WAIT_TIME_SEC K_SECONDS(SECONDS_WAIT_TIME)
 #define IDEAL_WAIT_TIME_MIN K_MINUTES(MINUTE_WAIT_TIME)
-// tolerances
-static int wet_tolerance = 0;
-static int dry_tolerance = 0;
 // thresholds
 static int dry_plant_threshold = 0;
 static int wet_plant_threshold = 0;
 static int ideal_plant_threshold = 0;
-// states
-bool soil_moisture_calibrated = false;
-// enum SOIL_SENSOR_STATE CURRENT_SOIL_STATE = DRY;
-// sampling
-static int samples[SAMPLE_SIZE] = {0};
-static int *ptr_sample = samples;
-static int *ptr_end_sample = samples + SAMPLE_SIZE;
-static int *ptr_end_read_moisture = samples + MOISTURE_READ_SIZE;
+
 // low pass filter
 static signed long smooth_data_int;
 static signed long smooth_data_fp;
@@ -97,11 +87,7 @@ void read_soil_moisture_mv()
     {
         LOG_WRN(" (value in mV not available)\n");
     }
-    else
-    {
-        // LOG_INF(" = %d mV", moisture_val_mv);
-        // smooth_data();
-    }
+
 }
 
 int smooth_data()
@@ -113,117 +99,52 @@ int smooth_data()
     smooth_data_fp >>= beta;
     smooth_data_int = smooth_data_fp >> fp_shift;
     // LOG_INF("measured data: %d mV", moisture_val_mv);
-    // LOG_INF("smooth data: %ld mV", smooth_data_int);
+    LOG_INF("smooth data: %ld mV", smooth_data_int);
     return smooth_data_int;
 }
 
-void read_smooth_soil()
+int read_smooth_soil()
 {
+    // read the raw value
     read_soil_moisture_mv();
-
-    if (ptr_sample < ptr_end_sample)
-    {
-        *ptr_sample = smooth_data();
-        ptr_sample++;
-    }
-
-    if (ptr_sample >= ptr_end_read_moisture)
-    {
-        ptr_sample--;
-        smooth_soil_val = *ptr_sample;
-        // reset
-        ptr_sample = samples;
-    }
+    smooth_soil_val = smooth_data();
+    return check_stability(smooth_soil_val);
 }
 
-// following operations are done:
-// 1. read current soil moisture
-// 2. get smoothed soil moisture and insert into samples
-// 3. when samples is filled -> dry threshold and tolerance is set
-// 4. pump is activated and soil is wet
-// 5. restarting sampling
-// 6. when samples is filled -> wet threshold and tolerance is set
-// 7. wait time
-// 8. when wait time is done -> latest smooth value is set as ideal threshold
-// 9. calibration done
 void calibrate_soil_sensor(CalibrationContext *ctx)
 {
-    read_soil_moisture_mv();
 
-    if (ptr_sample < ptr_end_sample)
-    {
-        *ptr_sample = smooth_data();
-        ptr_sample++;
-    }
+    int soil_reading = read_smooth_soil();
 
-    if (ptr_sample >= ptr_end_sample)
+    if (soil_reading)
     {
         if (ctx->current_soil_state != IDEAL)
         {
-            // scale: 0% -> dry, 100% -> wet
-            int min_val = samples[STABLE_SAMPLE_SIZE];
-            int max_val = samples[STABLE_SAMPLE_SIZE];
 
-            ptr_sample = samples;
-            ptr_sample += STABLE_SAMPLE_SIZE;
-
-            for (; ptr_sample < ptr_end_sample; ++ptr_sample)
+            if (ctx->current_soil_state == DRY)
             {
-                int val = *ptr_sample;
-                if (val > max_val)
-                {
-                    max_val = val;
-                }
-                else if (val < min_val)
-                {
-                    min_val = val;
-                }
+                dry_plant_threshold = smooth_soil_val;
+                LOG_INF("dry stable reading achieved at %d.", dry_plant_threshold);
+                ctx->soil_moisture_ready_to_calibrate = true; // TODO: rename so it is clear this is calibration for dry state
             }
-            int tolerance = max_val - min_val;
-            // redo sampling as samples are not stable enough
-            if (tolerance >= MAX_TOLERANCE)
+            else if (ctx->current_soil_state == WET)
             {
-                ptr_sample = samples;
-                LOG_INF("redoing sampling, tolerance: %d is too large", tolerance);
-            }
-            else
-            {
-                // temp setup to calibrate sensor
-                if (ctx->current_soil_state == DRY)
-                {
-                    dry_tolerance = max_val - min_val;
-                    dry_plant_threshold = max_val;
-                    LOG_INF("dry tolerance: %d, dry threshold: %d", dry_tolerance, dry_plant_threshold);
-                    // restart
-                    ptr_sample = samples;
-                    // LOG_INF("pumping water.."); // elsewhere a thread should start pumping/manage water
-                    // CURRENT_SOIL_STATE = WET;
-                    // k_sleep(K_MSEC(60000 * 5)); // delay for 5 min. for sensor to acclimate to water
-                    ctx->soil_moisture_calibrated = true; // TODO: rename so it is clear this is calibration for dry state
-                }
-                else if (ctx->current_soil_state == WET)
-                {
-                    wet_tolerance = max_val - min_val;
-                    wet_plant_threshold = min_val;
-                    LOG_INF("wet tolerance: %d, wet threshold: %d", wet_tolerance, wet_plant_threshold);
-                    // restart
-                    ctx->soil_moisture_calibrated = true;
-                    ptr_sample = samples;
-                    LOG_INF("Now waiting for %d min., to stabilize soil.", MINUTE_WAIT_TIME);
-                    // CURRENT_SOIL_STATE = IDEAL;
-                    k_sleep(IDEAL_WAIT_TIME_SEC);
-                }
+                wet_plant_threshold = smooth_soil_val;
+                LOG_INF("wet stable reading achieved at %d.", wet_plant_threshold);
+                // restart
+                ctx->soil_moisture_ready_to_calibrate = true;
+                LOG_INF("Now waiting for %d min., to stabilize soil.", MINUTE_WAIT_TIME);
+                k_sleep(IDEAL_WAIT_TIME_MIN);
             }
         }
         else if (ctx->current_soil_state == IDEAL)
         {
-            // get the latest value
-            ideal_plant_threshold = samples[SAMPLE_SIZE - 1];
-            LOG_INF("Ideal threshold: %d", ideal_plant_threshold);
+
+            ideal_plant_threshold = smooth_soil_val;
+
+            LOG_INF("ideal stable reading achieved at %d.", ideal_plant_threshold);
             // sensor calibration is done
-            ctx->soil_moisture_calibrated = true;
-            // restart
-            ptr_sample = samples;
+            ctx->soil_moisture_ready_to_calibrate = true;
         }
     }
 }
@@ -232,10 +153,6 @@ int mv_to_percentage(int value)
 {
     // scale: 0% -> dry, 100% -> wet
     // clamp value within input range
-    // TODO: is tolerance even necessary??
-    // maybe an idea is to redo calibration if tolerance is too high? too much diff between max/min
-    // int wet_value_min = wet_plant_threshold - wet_tolerance;
-    // int dry_value_max = dry_plant_threshold + dry_tolerance;
     int wet_value_min = wet_plant_threshold;
     int dry_value_max = dry_plant_threshold;
     // TODO: add check that wet value and dry value !=
@@ -259,5 +176,39 @@ int mv_to_percentage(int value)
             percentage = 100;
 
         return percentage;
+    }
+}
+
+int check_stability(int current_val)
+{
+    int tolerance = 3;
+    int stable_count = 5;
+    static int previous_val = 0;
+    static int count = 0;
+    if (abs(previous_val - current_val) > tolerance)
+    {
+        // outside tolerance, current_val not stable enough
+        // reset count
+        count = 0;
+    }
+    else
+    {
+        count++;
+    }
+    LOG_INF("count for stability: %d", count);
+    previous_val = current_val;
+
+    if (count >= stable_count)
+    {
+        // current val is stable enough
+        LOG_INF("stable smooth value");
+        // reset
+        count = 0;
+        previous_val = 0;
+        return 1;
+    }
+    else
+    {
+        return 0;
     }
 }
