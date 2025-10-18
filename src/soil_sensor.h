@@ -7,7 +7,7 @@ extern int moisture_val_mv;
 extern int smooth_soil_val;
 
 
-// extern enum SOIL_SENSOR_STATE CURRENT_SOIL_STATE;
+
 
 void initialize_adc();
 void read_soil_moisture_mv();

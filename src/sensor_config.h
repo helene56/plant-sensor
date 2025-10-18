@@ -3,6 +3,14 @@
 
 #define SENSOR_ARRAY_SIZE 3
 
+// nvs
+#define SOIL_MOISTURE_CAL_ID 1
+extern bool soil_moisture_calibrate_status;
+// // thresholds
+// static int dry_plant_threshold = 0;
+// static int wet_plant_threshold = 0;
+// static int ideal_plant_threshold = 0;
+
 enum PERIPHERAL_CMD_IDS
 {
     TEMPERATURE_HUMIDITY,
@@ -43,6 +51,7 @@ typedef struct
     bool soil_moisture_ready_to_calibrate; // to tell whenever each soil_sensor_state has been completed.
     bool soil_moisture_sensor_enabled; // once soil moisture has been calibrated, it is now ready to submit readings.
     bool pump_finished;
+    // bool soil_moisture_calibrated_once; // first time calibration done, add here??
 } CalibrationContext;
 
 void init_peripheral_cmds();

@@ -18,7 +18,7 @@ LOG_MODULE_DECLARE(Plant_sensor);
 #define SECONDS_WAIT_TIME 10 // TODO: temp value, only for testing
 #define IDEAL_WAIT_TIME_SEC K_SECONDS(SECONDS_WAIT_TIME)
 #define IDEAL_WAIT_TIME_MIN K_MINUTES(MINUTE_WAIT_TIME)
-// thresholds
+// thresholds - should be first defined in sensor_config
 static int dry_plant_threshold = 0;
 static int wet_plant_threshold = 0;
 static int ideal_plant_threshold = 0;

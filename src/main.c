@@ -16,6 +16,12 @@
 #include <dk_buttons_and_leds.h>
 #include <zephyr/drivers/gpio.h>
 
+// write to flash
+#include <zephyr/drivers/flash.h>
+#include <zephyr/storage/flash_map.h>
+#include <zephyr/fs/nvs.h>
+
+
 #include "my_pws.h"
 #include "dht_sensor.h"
 #include "sensor_config.h"
@@ -43,6 +49,79 @@ LOG_MODULE_REGISTER(Plant_sensor, LOG_LEVEL_INF);
 #define RUN_LED_BLINK_INTERVAL 1000
 #define NOTIFY_INTERVAL 5 * 1000 // dont read too often, to avoid sensor from heating it self up
 #define TURN_MOTOR_OFF_INTERVAL 500
+
+
+// write to flash
+static struct nvs_fs fs;
+
+#define NVS_PARTITION		storage_partition
+#define NVS_PARTITION_DEVICE	FIXED_PARTITION_DEVICE(NVS_PARTITION)
+#define NVS_PARTITION_OFFSET	FIXED_PARTITION_OFFSET(NVS_PARTITION)
+
+#define RBT_CNT_ID 3
+uint32_t reboot_counter = 0U;
+bool soil_moisture_calibrate_status = false;
+void init_nvs()
+{
+    int rc = 0;
+    struct flash_pages_info info;
+
+    /* define the nvs file system by settings with:
+	 *	sector_size equal to the pagesize,
+	 *	3 sectors
+	 *	starting at NVS_PARTITION_OFFSET
+	 */
+	fs.flash_device = NVS_PARTITION_DEVICE;
+	if (!device_is_ready(fs.flash_device)) {
+		printk("Flash device %s is not ready\n", fs.flash_device->name);
+		return;
+	}
+	fs.offset = NVS_PARTITION_OFFSET;
+	rc = flash_get_page_info_by_offs(fs.flash_device, fs.offset, &info);
+	if (rc) {
+		printk("Unable to get page info\n");
+		return;
+	}
+	fs.sector_size = info.size;
+	fs.sector_count = 2U;
+
+    rc = nvs_mount(&fs);
+	if (rc) {
+		printk("Flash Init failed\n");
+		return;
+	}
+
+    /* RBT_CNT_ID is used to store the reboot counter, lets see
+	 * if we can read it from flash
+	 */
+	rc = nvs_read(&fs, RBT_CNT_ID, &reboot_counter, sizeof(reboot_counter));
+	if (rc > 0) { /* item was found, show it */
+		printk("Id: %d, Reboot_counter: %d\n",
+			RBT_CNT_ID, reboot_counter);
+	} else   {/* item was not found, add it */
+		printk("No Reboot counter found, adding it at id %d\n",
+		       RBT_CNT_ID);
+		(void)nvs_write(&fs, RBT_CNT_ID, &reboot_counter,
+			  sizeof(reboot_counter));
+	}
+
+    // initialize uninitialized values here..
+    // soil_moisture_calibrate_status
+    
+    rc = nvs_read(&fs, SOIL_MOISTURE_CAL_ID, &soil_moisture_calibrate_status, sizeof(soil_moisture_calibrate_status));
+    if (rc > 0) { /* item was found, show it */
+		printk("Id: %d, soil cal status: %d\n",
+			SOIL_MOISTURE_CAL_ID, soil_moisture_calibrate_status);
+	} else   {/* item was not found, add it */
+		printk("No Reboot counter found, adding it at id %d\n",
+		       SOIL_MOISTURE_CAL_ID);
+		(void)nvs_write(&fs, SOIL_MOISTURE_CAL_ID, &soil_moisture_calibrate_status,
+			  sizeof(soil_moisture_calibrate_status));
+	}
+
+
+}
+
 
 static uint64_t start_time; // Stores connection start timestamp
 static uint16_t plant_env_readings[SENSOR_ARRAY_SIZE] = {0};
@@ -370,6 +449,8 @@ void update_state(CalibrationContext *ctx)
             init_timer();
             print_once = true;
             ctx->soil_moisture_sensor_enabled = true;
+            // set to true and save in nvs
+            // ctx->soil_moisture_calibrated_once = true;
         }
         break;
     }
@@ -458,6 +539,14 @@ int main(void)
 
     initialize_adc();
     gpio_pump_init();
+    // counter write to flash
+    init_nvs();
+    reboot_counter++;
+    (void)nvs_write(
+        &fs, RBT_CNT_ID, &reboot_counter,
+        sizeof(reboot_counter));
+
+
     for (;;)
     {
 
