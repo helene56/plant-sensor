@@ -58,67 +58,102 @@ static struct nvs_fs fs;
 #define NVS_PARTITION_DEVICE	FIXED_PARTITION_DEVICE(NVS_PARTITION)
 #define NVS_PARTITION_OFFSET	FIXED_PARTITION_OFFSET(NVS_PARTITION)
 
-#define RBT_CNT_ID 3
+#define RBT_CNT_ID 0
 uint32_t reboot_counter = 0U;
 bool soil_moisture_calibrate_status = false;
-void init_nvs()
+int dry_plant_threshold = 0;
+int wet_plant_threshold = 0;
+int ideal_plant_threshold = 0;
+
+
+void init_nvs_counter(struct nvs_fs *fs, uint16_t id, int *data, size_t len, const char *data_name)
+{
+    int rc = 0;
+    rc = nvs_read(fs, id, data, len);
+    if (rc > 0) { /* item was found, show it */
+        printk("Id: %d, %s: %d\n",
+            id, data_name, *data);
+    } else   {/* item was not found, add it */
+        printk("No %s found, adding it at id %d\n",
+               data_name, id);
+        (void)nvs_write(fs, id, data,
+              len);
+    }
+
+}
+
+void init_nvs(CalibrationContext *ctx)
 {
     int rc = 0;
     struct flash_pages_info info;
 
     /* define the nvs file system by settings with:
-	 *	sector_size equal to the pagesize,
-	 *	3 sectors
-	 *	starting at NVS_PARTITION_OFFSET
-	 */
-	fs.flash_device = NVS_PARTITION_DEVICE;
-	if (!device_is_ready(fs.flash_device)) {
-		printk("Flash device %s is not ready\n", fs.flash_device->name);
-		return;
-	}
-	fs.offset = NVS_PARTITION_OFFSET;
-	rc = flash_get_page_info_by_offs(fs.flash_device, fs.offset, &info);
-	if (rc) {
-		printk("Unable to get page info\n");
-		return;
-	}
-	fs.sector_size = info.size;
-	fs.sector_count = 2U;
+     *	sector_size equal to the pagesize,
+     *	3 sectors
+     *	starting at NVS_PARTITION_OFFSET
+     */
+    fs.flash_device = NVS_PARTITION_DEVICE;
+    if (!device_is_ready(fs.flash_device)) {
+        printk("Flash device %s is not ready\n", fs.flash_device->name);
+        return;
+    }
+    fs.offset = NVS_PARTITION_OFFSET;
+    rc = flash_get_page_info_by_offs(fs.flash_device, fs.offset, &info);
+    if (rc) {
+        printk("Unable to get page info\n");
+        return;
+    }
+    fs.sector_size = info.size;
+    fs.sector_count = 2U;
 
     rc = nvs_mount(&fs);
-	if (rc) {
-		printk("Flash Init failed\n");
-		return;
-	}
+    if (rc) {
+        printk("Flash Init failed\n");
+        return;
+    }
 
     /* RBT_CNT_ID is used to store the reboot counter, lets see
-	 * if we can read it from flash
-	 */
-	rc = nvs_read(&fs, RBT_CNT_ID, &reboot_counter, sizeof(reboot_counter));
-	if (rc > 0) { /* item was found, show it */
-		printk("Id: %d, Reboot_counter: %d\n",
-			RBT_CNT_ID, reboot_counter);
-	} else   {/* item was not found, add it */
-		printk("No Reboot counter found, adding it at id %d\n",
-		       RBT_CNT_ID);
-		(void)nvs_write(&fs, RBT_CNT_ID, &reboot_counter,
-			  sizeof(reboot_counter));
-	}
+     * if we can read it from flash
+     */
+    rc = nvs_read(&fs, RBT_CNT_ID, &reboot_counter, sizeof(reboot_counter));
+    if (rc > 0) { /* item was found, show it */
+        printk("Id: %d, Reboot_counter: %d\n",
+            RBT_CNT_ID, reboot_counter);
+    } else   {/* item was not found, add it */
+        printk("No Reboot counter found, adding it at id %d\n",
+               RBT_CNT_ID);
+        (void)nvs_write(&fs, RBT_CNT_ID, &reboot_counter,
+              sizeof(reboot_counter));
+    }
 
     // initialize uninitialized values here..
     // soil_moisture_calibrate_status
     
-    rc = nvs_read(&fs, SOIL_MOISTURE_CAL_ID, &soil_moisture_calibrate_status, sizeof(soil_moisture_calibrate_status));
+    rc = nvs_read(&fs, SOIL_MOI_CAL_ID, &soil_moisture_calibrate_status, sizeof(soil_moisture_calibrate_status));
     if (rc > 0) { /* item was found, show it */
-		printk("Id: %d, soil cal status: %d\n",
-			SOIL_MOISTURE_CAL_ID, soil_moisture_calibrate_status);
-	} else   {/* item was not found, add it */
-		printk("No Reboot counter found, adding it at id %d\n",
-		       SOIL_MOISTURE_CAL_ID);
-		(void)nvs_write(&fs, SOIL_MOISTURE_CAL_ID, &soil_moisture_calibrate_status,
-			  sizeof(soil_moisture_calibrate_status));
-	}
+        printk("Id: %d, soil cal status: %d\n",
+            SOIL_MOI_CAL_ID, soil_moisture_calibrate_status);
+    } else   {/* item was not found, add it */
+        printk("No soil cal found, adding it at id %d\n",
+               SOIL_MOI_CAL_ID);
+        (void)nvs_write(&fs, SOIL_MOI_CAL_ID, &soil_moisture_calibrate_status,
+              sizeof(soil_moisture_calibrate_status));
+    }
 
+    // thresholds
+    init_nvs_counter(&fs, DRY_PLANT_ID, &dry_plant_threshold, 
+        sizeof(dry_plant_threshold), "dry plant threshold");
+    init_nvs_counter(&fs, WET_PLANT_ID, &wet_plant_threshold, 
+        sizeof(wet_plant_threshold), "wet plant threshold");
+    init_nvs_counter(&fs, IDEAL_PLANT_ID, &ideal_plant_threshold, 
+        sizeof(ideal_plant_threshold), "ideal plant threshold");
+
+    // update calibrationcontext
+    if (soil_moisture_calibrate_status)
+    {
+        // is already calibrated so this can be set to true immediatly
+        ctx->soil_moisture_sensor_enabled = true;
+    }
 
 }
 
@@ -380,12 +415,12 @@ void manage_pump(CalibrationContext *ctx)
     }
 }
 
-void do_calibration_step(CalibrationContext *ctx)
+void do_calibration_step(CalibrationContext *ctx, struct nvs_fs *fs)
 {
     switch (ctx->current_soil_state)
     {
     case DRY:
-        calibrate_soil_sensor(ctx);
+        calibrate_soil_sensor(ctx, fs);
         break;
 
     case START_PUMP:
@@ -393,11 +428,11 @@ void do_calibration_step(CalibrationContext *ctx)
         break;
 
     case WET:
-        calibrate_soil_sensor(ctx);
+        calibrate_soil_sensor(ctx, fs);
         break;
 
     case IDEAL:
-        calibrate_soil_sensor(ctx);
+        calibrate_soil_sensor(ctx, fs);
         break;
     }
 }
@@ -450,14 +485,17 @@ void update_state(CalibrationContext *ctx)
             print_once = true;
             ctx->soil_moisture_sensor_enabled = true;
             // set to true and save in nvs
-            // ctx->soil_moisture_calibrated_once = true;
+            soil_moisture_calibrate_status = true;
+            (void)nvs_write(
+                &fs, SOIL_MOI_CAL_ID, &soil_moisture_calibrate_status,
+                sizeof(soil_moisture_calibrate_status));
         }
         break;
     }
 }
 
 // this should be the thread running the main calibration
-void main_calibrate_thread(void *p1)
+void main_calibrate_thread(void *p1, struct nvs_fs *fs)
 {
     CalibrationContext *ctx = (CalibrationContext *)p1;
 
@@ -469,8 +507,11 @@ void main_calibrate_thread(void *p1)
             {
                 LOG_INF("starting calibration");
                 print_once = false;
+                // reset to false, to avoid measuring of soil moisture while
+                // calibration is ongoing
+                ctx->soil_moisture_sensor_enabled = false;
             }
-            do_calibration_step(ctx);
+            do_calibration_step(ctx, fs);
             update_state(ctx);
         }
         k_sleep(K_MSEC(100));
@@ -540,7 +581,7 @@ int main(void)
     initialize_adc();
     gpio_pump_init();
     // counter write to flash
-    init_nvs();
+    init_nvs(&ctx);
     reboot_counter++;
     (void)nvs_write(
         &fs, RBT_CNT_ID, &reboot_counter,
@@ -555,10 +596,10 @@ int main(void)
     }
 }
 
-K_THREAD_DEFINE(send_data_thread_id, STACKSIZE, send_data_thread, &ctx, NULL,
+K_THREAD_DEFINE(send_data_thread_id, STACKSIZE, send_data_thread, &ctx, &fs,
                 NULL, 8, 0, 0);
 
-K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, main_calibrate_thread, &ctx, NULL,
+K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, main_calibrate_thread, &ctx, &fs,
                 NULL, PRIORITY, 0, 0);
 
 K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, start_pump, NULL, NULL,

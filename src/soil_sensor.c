@@ -19,9 +19,9 @@ LOG_MODULE_DECLARE(Plant_sensor);
 #define IDEAL_WAIT_TIME_SEC K_SECONDS(SECONDS_WAIT_TIME)
 #define IDEAL_WAIT_TIME_MIN K_MINUTES(MINUTE_WAIT_TIME)
 // thresholds - should be first defined in sensor_config
-static int dry_plant_threshold = 0;
-static int wet_plant_threshold = 0;
-static int ideal_plant_threshold = 0;
+// static int dry_plant_threshold = 0;
+// static int wet_plant_threshold = 0;
+// static int ideal_plant_threshold = 0;
 
 // low pass filter
 static signed long smooth_data_int;
@@ -111,7 +111,7 @@ int read_smooth_soil()
     return check_stability(smooth_soil_val);
 }
 
-void calibrate_soil_sensor(CalibrationContext *ctx)
+void calibrate_soil_sensor(CalibrationContext *ctx, struct nvs_fs *fs)
 {
 
     int soil_reading = read_smooth_soil();
@@ -124,12 +124,19 @@ void calibrate_soil_sensor(CalibrationContext *ctx)
             if (ctx->current_soil_state == DRY)
             {
                 dry_plant_threshold = smooth_soil_val;
+                // write to flash to save value
+                (void)nvs_write(
+                fs, DRY_PLANT_ID, &dry_plant_threshold,
+                sizeof(dry_plant_threshold));
                 LOG_INF("dry stable reading achieved at %d.", dry_plant_threshold);
                 ctx->soil_moisture_ready_to_calibrate = true; // TODO: rename so it is clear this is calibration for dry state
             }
             else if (ctx->current_soil_state == WET)
             {
                 wet_plant_threshold = smooth_soil_val;
+                (void)nvs_write(
+                fs, WET_PLANT_ID, &wet_plant_threshold,
+                sizeof(wet_plant_threshold));
                 LOG_INF("wet stable reading achieved at %d.", wet_plant_threshold);
                 // restart
                 ctx->soil_moisture_ready_to_calibrate = true;
@@ -141,7 +148,9 @@ void calibrate_soil_sensor(CalibrationContext *ctx)
         {
 
             ideal_plant_threshold = smooth_soil_val;
-
+            (void)nvs_write(
+                fs, IDEAL_PLANT_ID, &ideal_plant_threshold,
+                sizeof(ideal_plant_threshold));
             LOG_INF("ideal stable reading achieved at %d.", ideal_plant_threshold);
             // sensor calibration is done
             ctx->soil_moisture_ready_to_calibrate = true;
