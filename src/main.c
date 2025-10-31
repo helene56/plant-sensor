@@ -21,7 +21,6 @@
 #include <zephyr/storage/flash_map.h>
 #include <zephyr/fs/nvs.h>
 
-
 #include "my_pws.h"
 #include "dht_sensor.h"
 #include "sensor_config.h"
@@ -50,13 +49,22 @@ LOG_MODULE_REGISTER(Plant_sensor, LOG_LEVEL_INF);
 #define NOTIFY_INTERVAL 5 * 1000 // dont read too often, to avoid sensor from heating it self up
 #define TURN_MOTOR_OFF_INTERVAL 500
 
-
 // write to flash
 static struct nvs_fs fs;
 
-#define NVS_PARTITION		storage_partition
-#define NVS_PARTITION_DEVICE	FIXED_PARTITION_DEVICE(NVS_PARTITION)
-#define NVS_PARTITION_OFFSET	FIXED_PARTITION_OFFSET(NVS_PARTITION)
+#define NVS_PARTITION storage_partition
+#define NVS_PARTITION_DEVICE FIXED_PARTITION_DEVICE(NVS_PARTITION)
+#define NVS_PARTITION_OFFSET FIXED_PARTITION_OFFSET(NVS_PARTITION)
+// TODO: this does not work properly only uses the fallback
+/* Try to use the partition manager if available */
+// #ifdef PM_STORAGE_PARTITION_ID
+// #define NVS_PARTITION_DEVICE FIXED_PARTITION_DEVICE(storage_partition)
+// #define NVS_PARTITION_OFFSET FIXED_PARTITION_OFFSET(storage_partition)
+// #else
+// /* Fallback for boards without defined storage partition (e.g. nRF52840 Dongle) */
+// #define NVS_PARTITION_DEVICE DEVICE_DT_GET(DT_CHOSEN(zephyr_flash_controller))
+// #define NVS_PARTITION_OFFSET 0x000fe000
+// #endif
 
 #define RBT_CNT_ID 0
 uint32_t reboot_counter = 0U;
@@ -65,21 +73,22 @@ int dry_plant_threshold = 0;
 int wet_plant_threshold = 0;
 int ideal_plant_threshold = 0;
 
-
 void init_nvs_counter(struct nvs_fs *fs, uint16_t id, int *data, size_t len, const char *data_name)
 {
     int rc = 0;
     rc = nvs_read(fs, id, data, len);
-    if (rc > 0) { /* item was found, show it */
+    if (rc > 0)
+    { /* item was found, show it */
         printk("Id: %d, %s: %d\n",
-            id, data_name, *data);
-    } else   {/* item was not found, add it */
+               id, data_name, *data);
+    }
+    else
+    { /* item was not found, add it */
         printk("No %s found, adding it at id %d\n",
                data_name, id);
         (void)nvs_write(fs, id, data,
-              len);
+                        len);
     }
-
 }
 
 void init_nvs(CalibrationContext *ctx)
@@ -93,21 +102,24 @@ void init_nvs(CalibrationContext *ctx)
      *	starting at NVS_PARTITION_OFFSET
      */
     fs.flash_device = NVS_PARTITION_DEVICE;
-    if (!device_is_ready(fs.flash_device)) {
+    if (!device_is_ready(fs.flash_device))
+    {
         printk("Flash device %s is not ready\n", fs.flash_device->name);
         return;
     }
     fs.offset = NVS_PARTITION_OFFSET;
     rc = flash_get_page_info_by_offs(fs.flash_device, fs.offset, &info);
-    if (rc) {
+    if (rc)
+    {
         printk("Unable to get page info\n");
         return;
     }
     fs.sector_size = info.size;
-    fs.sector_count = 2U;
+    fs.sector_count = 3U;
 
     rc = nvs_mount(&fs);
-    if (rc) {
+    if (rc)
+    {
         printk("Flash Init failed\n");
         return;
     }
@@ -116,37 +128,43 @@ void init_nvs(CalibrationContext *ctx)
      * if we can read it from flash
      */
     rc = nvs_read(&fs, RBT_CNT_ID, &reboot_counter, sizeof(reboot_counter));
-    if (rc > 0) { /* item was found, show it */
+    if (rc > 0)
+    { /* item was found, show it */
         printk("Id: %d, Reboot_counter: %d\n",
-            RBT_CNT_ID, reboot_counter);
-    } else   {/* item was not found, add it */
+               RBT_CNT_ID, reboot_counter);
+    }
+    else
+    { /* item was not found, add it */
         printk("No Reboot counter found, adding it at id %d\n",
                RBT_CNT_ID);
         (void)nvs_write(&fs, RBT_CNT_ID, &reboot_counter,
-              sizeof(reboot_counter));
+                        sizeof(reboot_counter));
     }
 
     // initialize uninitialized values here..
     // soil_moisture_calibrate_status
-    
+
     rc = nvs_read(&fs, SOIL_MOI_CAL_ID, &soil_moisture_calibrate_status, sizeof(soil_moisture_calibrate_status));
-    if (rc > 0) { /* item was found, show it */
+    if (rc > 0)
+    { /* item was found, show it */
         printk("Id: %d, soil cal status: %d\n",
-            SOIL_MOI_CAL_ID, soil_moisture_calibrate_status);
-    } else   {/* item was not found, add it */
+               SOIL_MOI_CAL_ID, soil_moisture_calibrate_status);
+    }
+    else
+    { /* item was not found, add it */
         printk("No soil cal found, adding it at id %d\n",
                SOIL_MOI_CAL_ID);
         (void)nvs_write(&fs, SOIL_MOI_CAL_ID, &soil_moisture_calibrate_status,
-              sizeof(soil_moisture_calibrate_status));
+                        sizeof(soil_moisture_calibrate_status));
     }
 
     // thresholds
-    init_nvs_counter(&fs, DRY_PLANT_ID, &dry_plant_threshold, 
-        sizeof(dry_plant_threshold), "dry plant threshold");
-    init_nvs_counter(&fs, WET_PLANT_ID, &wet_plant_threshold, 
-        sizeof(wet_plant_threshold), "wet plant threshold");
-    init_nvs_counter(&fs, IDEAL_PLANT_ID, &ideal_plant_threshold, 
-        sizeof(ideal_plant_threshold), "ideal plant threshold");
+    init_nvs_counter(&fs, DRY_PLANT_ID, &dry_plant_threshold,
+                     sizeof(dry_plant_threshold), "dry plant threshold");
+    init_nvs_counter(&fs, WET_PLANT_ID, &wet_plant_threshold,
+                     sizeof(wet_plant_threshold), "wet plant threshold");
+    init_nvs_counter(&fs, IDEAL_PLANT_ID, &ideal_plant_threshold,
+                     sizeof(ideal_plant_threshold), "ideal plant threshold");
 
     // update calibrationcontext
     if (soil_moisture_calibrate_status)
@@ -154,9 +172,7 @@ void init_nvs(CalibrationContext *ctx)
         // is already calibrated so this can be set to true immediatly
         ctx->soil_moisture_sensor_enabled = true;
     }
-
 }
-
 
 static uint64_t start_time; // Stores connection start timestamp
 static uint16_t plant_env_readings[SENSOR_ARRAY_SIZE] = {0};
@@ -327,7 +343,7 @@ void send_data_thread(void *p1)
             // send notification for temp/humidity
             plant_env_readings[0] = env_readings.temp;
             plant_env_readings[1] = env_readings.humidity;
-          
+
             if (ctx->soil_moisture_sensor_enabled)
             {
                 int stable_soil_reading = read_smooth_soil();
@@ -359,36 +375,36 @@ void send_data_thread(void *p1)
     }
 }
 
-void start_pump()
-{
-    static bool set_start_time = false;
-    static int64_t start_time_pump;
-    while (1)
-    {
-        if (pump_on)
-        {
-            if (!set_start_time)
-            {
-                gpio_pin_set_dt(&pump, 1);
-                start_time_pump = k_uptime_get();
-                set_start_time = true;
-            }
-            else
-            {
-                int64_t elapsed_ms = k_uptime_get() - start_time_pump;
-                // should only be on for 20 sec.
-                if (elapsed_ms >= 20000)
-                {
-                    gpio_pin_set_dt(&pump, 0);
-                    LOG_INF("stop watering..");
-                    pump_on = false;
-                    set_start_time = false;
-                }
-            }
-        }
-        k_sleep(K_MSEC(100));
-    }
-}
+// void start_pump()
+// {
+//     static bool set_start_time = false;
+//     static int64_t start_time_pump;
+//     while (1)
+//     {
+//         if (pump_on)
+//         {
+//             if (!set_start_time)
+//             {
+//                 gpio_pin_set_dt(&pump, 1);
+//                 start_time_pump = k_uptime_get();
+//                 set_start_time = true;
+//             }
+//             else
+//             {
+//                 int64_t elapsed_ms = k_uptime_get() - start_time_pump;
+//                 // should only be on for 20 sec.
+//                 if (elapsed_ms >= 20000)
+//                 {
+//                     gpio_pin_set_dt(&pump, 0);
+//                     LOG_INF("stop watering..");
+//                     pump_on = false;
+//                     set_start_time = false;
+//                 }
+//             }
+//         }
+//         k_sleep(K_MSEC(100));
+//     }
+// }
 
 void manage_pump(CalibrationContext *ctx)
 {
@@ -412,6 +428,35 @@ void manage_pump(CalibrationContext *ctx)
             ctx->pump_state = PUMP_OFF;
             ctx->pump_finished = true;
         }
+    }
+}
+
+// debug test function to verify the pump (pin) works
+void test_pump_setup()
+{
+    while (1)
+    {
+        static bool pump_test_started = false;
+        if (peripheral_cmds[TEST_PUMP].enabled)
+        {
+            LOG_INF("Starting watering cycle test..");
+            gpio_pin_set_dt(&pump, 1);
+            start_time = k_uptime_get();
+            peripheral_cmds[TEST_PUMP].enabled = false;
+            pump_test_started = true;
+        }
+        else if (pump_test_started)
+        {
+            int64_t elapsed_ms = k_uptime_get() - start_time;
+            // should only be on for 20 sec.
+            if (elapsed_ms >= 20000)
+            {
+                gpio_pin_set_dt(&pump, 0);
+                LOG_INF("stop watering test cycle..");
+                pump_test_started = false;
+            }
+        }
+        k_sleep(K_MSEC(100));
     }
 }
 
@@ -587,7 +632,6 @@ int main(void)
         &fs, RBT_CNT_ID, &reboot_counter,
         sizeof(reboot_counter));
 
-
     for (;;)
     {
 
@@ -602,8 +646,8 @@ K_THREAD_DEFINE(send_data_thread_id, STACKSIZE, send_data_thread, &ctx, &fs,
 K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, main_calibrate_thread, &ctx, &fs,
                 NULL, PRIORITY, 0, 0);
 
-K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, start_pump, NULL, NULL,
-                NULL, 8, 0, 0);
+K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, test_pump_setup, NULL, NULL,
+                NULL, 6, 0, 0);
 
 // K_THREAD_DEFINE(send_data_thread_id3, STACKSIZE, read_soil, &ctx, NULL,
 //                 NULL, 6, 0, 0);
