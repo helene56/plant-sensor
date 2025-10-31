@@ -540,9 +540,10 @@ void update_state(CalibrationContext *ctx)
 }
 
 // this should be the thread running the main calibration
-void main_calibrate_thread(void *p1, struct nvs_fs *fs)
+void main_calibrate_thread(void *p1, void *p2)
 {
     CalibrationContext *ctx = (CalibrationContext *)p1;
+    struct nvs_fs *fs = (struct nvs_fs *)p2;
 
     while (1)
     {
@@ -640,7 +641,7 @@ int main(void)
     }
 }
 
-K_THREAD_DEFINE(send_data_thread_id, STACKSIZE, send_data_thread, &ctx, &fs,
+K_THREAD_DEFINE(send_data_thread_id, STACKSIZE, send_data_thread, &ctx, NULL,
                 NULL, 8, 0, 0);
 
 K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, main_calibrate_thread, &ctx, &fs,
