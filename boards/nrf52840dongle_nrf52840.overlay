@@ -27,7 +27,7 @@
     pumps {
         compatible = "gpio-leds";
         mypump0: pump_0 {
-            gpios = <&gpio1 7 GPIO_ACTIVE_HIGH>;
+            gpios = <&gpio0 22 GPIO_ACTIVE_HIGH>;
         };
     };
 };
@@ -51,4 +51,13 @@
         zephyr,input-positive = <NRF_SAADC_AIN0>; /* P0.02 for nRF52xx, P0.04 for nRF5340 */
         zephyr,resolution = <12>;
     };
+};
+
+&uart0 {
+	compatible = "nordic,nrf-uarte";
+	status = "disabled";
+	current-speed = <115200>;
+	pinctrl-0 = <&uart0_default>;
+	pinctrl-1 = <&uart0_sleep>;
+	pinctrl-names = "default", "sleep";
 };

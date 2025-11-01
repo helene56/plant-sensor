@@ -245,36 +245,65 @@ void send_data_thread(void *p1)
     }
 }
 
-void start_pump()
+// debug test function to verify the pump (pin) works
+void test_pump_setup()
 {
-    static bool set_start_time = false;
-    static int64_t start_time_pump;
     while (1)
     {
-        if (pump_on)
+        static bool pump_test_started = false;
+        if (peripheral_cmds[TEST_PUMP].enabled)
         {
-            if (!set_start_time)
+            LOG_INF("Starting watering cycle test..");
+            gpio_pin_set_dt(&pump, 1);
+            start_time = k_uptime_get();
+            peripheral_cmds[TEST_PUMP].enabled = false;
+            pump_test_started = true;
+        }
+        else if (pump_test_started)
+        {
+            int64_t elapsed_ms = k_uptime_get() - start_time;
+            // should only be on for 20 sec.
+            if (elapsed_ms >= 20000)
             {
-                gpio_pin_set_dt(&pump, 1);
-                start_time_pump = k_uptime_get();
-                set_start_time = true;
-            }
-            else
-            {
-                int64_t elapsed_ms = k_uptime_get() - start_time_pump;
-                // should only be on for 20 sec.
-                if (elapsed_ms >= 20000)
-                {
-                    gpio_pin_set_dt(&pump, 0);
-                    LOG_INF("stop watering..");
-                    pump_on = false;
-                    set_start_time = false;
-                }
+                gpio_pin_set_dt(&pump, 0);
+                LOG_INF("stop watering test cycle..");
+                pump_test_started = false;
             }
         }
         k_sleep(K_MSEC(100));
     }
 }
+
+// void start_pump()
+// {
+//     static bool set_start_time = false;
+//     static int64_t start_time_pump;
+//     while (1)
+//     {
+//         if (pump_on)
+//         {
+//             if (!set_start_time)
+//             {
+//                 gpio_pin_set_dt(&pump, 1);
+//                 start_time_pump = k_uptime_get();
+//                 set_start_time = true;
+//             }
+//             else
+//             {
+//                 int64_t elapsed_ms = k_uptime_get() - start_time_pump;
+//                 // should only be on for 20 sec.
+//                 if (elapsed_ms >= 20000)
+//                 {
+//                     gpio_pin_set_dt(&pump, 0);
+//                     LOG_INF("stop watering..");
+//                     pump_on = false;
+//                     set_start_time = false;
+//                 }
+//             }
+//         }
+//         k_sleep(K_MSEC(100));
+//     }
+// }
 
 void manage_pump(CalibrationContext *ctx)
 {
@@ -472,8 +501,8 @@ K_THREAD_DEFINE(send_data_thread_id, STACKSIZE, send_data_thread, &ctx, NULL,
 K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, main_calibrate_thread, &ctx, NULL,
                 NULL, PRIORITY, 0, 0);
 
-K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, start_pump, NULL, NULL,
-                NULL, 8, 0, 0);
+K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, test_pump_setup, NULL, NULL,
+                NULL, 6, 0, 0);
 
 // K_THREAD_DEFINE(send_data_thread_id3, STACKSIZE, read_soil, &ctx, NULL,
 //                 NULL, 6, 0, 0);
