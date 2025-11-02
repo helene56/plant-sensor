@@ -55,16 +55,6 @@ static struct nvs_fs fs;
 #define NVS_PARTITION storage_partition
 #define NVS_PARTITION_DEVICE FIXED_PARTITION_DEVICE(NVS_PARTITION)
 #define NVS_PARTITION_OFFSET FIXED_PARTITION_OFFSET(NVS_PARTITION)
-// TODO: this does not work properly only uses the fallback
-/* Try to use the partition manager if available */
-// #ifdef PM_STORAGE_PARTITION_ID
-// #define NVS_PARTITION_DEVICE FIXED_PARTITION_DEVICE(storage_partition)
-// #define NVS_PARTITION_OFFSET FIXED_PARTITION_OFFSET(storage_partition)
-// #else
-// /* Fallback for boards without defined storage partition (e.g. nRF52840 Dongle) */
-// #define NVS_PARTITION_DEVICE DEVICE_DT_GET(DT_CHOSEN(zephyr_flash_controller))
-// #define NVS_PARTITION_OFFSET 0x000fe000
-// #endif
 
 #define RBT_CNT_ID 0
 uint32_t reboot_counter = 0U;
