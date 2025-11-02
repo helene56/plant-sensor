@@ -365,6 +365,35 @@ void send_data_thread(void *p1)
     }
 }
 
+// debug test function to verify the pump (pin) works
+void test_pump_setup()
+{
+    while (1)
+    {
+        static bool pump_test_started = false;
+        if (peripheral_cmds[TEST_PUMP].enabled)
+        {
+            LOG_INF("Starting watering cycle test..");
+            gpio_pin_set_dt(&pump, 1);
+            start_time = k_uptime_get();
+            peripheral_cmds[TEST_PUMP].enabled = false;
+            pump_test_started = true;
+        }
+        else if (pump_test_started)
+        {
+            int64_t elapsed_ms = k_uptime_get() - start_time;
+            // should only be on for 20 sec.
+            if (elapsed_ms >= 20000)
+            {
+                gpio_pin_set_dt(&pump, 0);
+                LOG_INF("stop watering test cycle..");
+                pump_test_started = false;
+            }
+        }
+        k_sleep(K_MSEC(100));
+    }
+}
+
 // void start_pump()
 // {
 //     static bool set_start_time = false;

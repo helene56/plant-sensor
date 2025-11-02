@@ -22,7 +22,7 @@ enum PERIPHERAL_CMD_IDS
     PUMP,
     SOIL_CAL,
     CLEAR_LOG,
-    TEST_PUMP, 
+    TEST_PUMP,
     NUM_OF_CMDS // used to define total amount of commands
 };
 
