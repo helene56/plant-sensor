@@ -58,7 +58,7 @@ static struct nvs_fs fs;
 
 #define RBT_CNT_ID 0
 uint32_t reboot_counter = 0U;
-bool soil_moisture_calibrate_status = false;
+uint8_t soil_moisture_calibrate_status = 0;
 int dry_plant_threshold = 0;
 int wet_plant_threshold = 0;
 int ideal_plant_threshold = 0;
@@ -151,16 +151,22 @@ void init_nvs(CalibrationContext *ctx)
     // thresholds
     init_nvs_counter(&fs, DRY_PLANT_ID, &dry_plant_threshold,
                      sizeof(dry_plant_threshold), "dry plant threshold");
+    printk("next one\n");
     init_nvs_counter(&fs, WET_PLANT_ID, &wet_plant_threshold,
                      sizeof(wet_plant_threshold), "wet plant threshold");
     init_nvs_counter(&fs, IDEAL_PLANT_ID, &ideal_plant_threshold,
                      sizeof(ideal_plant_threshold), "ideal plant threshold");
-
+    
+    
+    printk("status of soil cal: %d\n", soil_moisture_calibrate_status);
     // update calibrationcontext
     if (soil_moisture_calibrate_status)
     {
+        printk("soil moisture calibrated, turning settings on\n");
         // is already calibrated so this can be set to true immediatly
         ctx->soil_moisture_sensor_enabled = true;
+        // start the logging as well
+        init_timer();
     }
 }
 
@@ -286,7 +292,6 @@ static void app_init_time_stamp(int64_t time_stamp)
         LOG_INF("recieved timestamp");
         int64_t recieved_time = get_unix_timestamp_ms();
         LOG_INF("time stamp = %lld", recieved_time);
-        // init_timer();
     }
     else
     {
@@ -450,34 +455,6 @@ void manage_pump(CalibrationContext *ctx)
     }
 }
 
-// debug test function to verify the pump (pin) works
-void test_pump_setup()
-{
-    while (1)
-    {
-        static bool pump_test_started = false;
-        if (peripheral_cmds[TEST_PUMP].enabled)
-        {
-            LOG_INF("Starting watering cycle test..");
-            gpio_pin_set_dt(&pump, 1);
-            start_time = k_uptime_get();
-            peripheral_cmds[TEST_PUMP].enabled = false;
-            pump_test_started = true;
-        }
-        else if (pump_test_started)
-        {
-            int64_t elapsed_ms = k_uptime_get() - start_time;
-            // should only be on for 20 sec.
-            if (elapsed_ms >= 20000)
-            {
-                gpio_pin_set_dt(&pump, 0);
-                LOG_INF("stop watering test cycle..");
-                pump_test_started = false;
-            }
-        }
-        k_sleep(K_MSEC(100));
-    }
-}
 
 void do_calibration_step(CalibrationContext *ctx, struct nvs_fs *fs)
 {
@@ -549,7 +526,7 @@ void update_state(CalibrationContext *ctx)
             print_once = true;
             ctx->soil_moisture_sensor_enabled = true;
             // set to true and save in nvs
-            soil_moisture_calibrate_status = true;
+            soil_moisture_calibrate_status = 1;
             (void)nvs_write(
                 &fs, SOIL_MOI_CAL_ID, &soil_moisture_calibrate_status,
                 sizeof(soil_moisture_calibrate_status));

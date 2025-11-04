@@ -5,7 +5,13 @@
 
 // nvs
 #define SOIL_MOI_CAL_ID 1
-extern bool soil_moisture_calibrate_status;
+// timer thread data
+// extern struct k_sem data_ready_sem;
+// extern struct k_sem start_logging_sem;
+
+// extern bool timer_going_off;
+// extern int timer_read_soil;
+// extern bool soil_moisture_calibrate_status;
 // // thresholds
 #define DRY_PLANT_ID 2
 #define WET_PLANT_ID 3

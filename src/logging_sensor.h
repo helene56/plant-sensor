@@ -23,4 +23,5 @@ extern uint32_t data_logs[STORED_LOGS];
 
 int64_t get_unix_timestamp_ms();
 void init_timer();
+void my_work_handler();
 #endif /* LOGGING_SENSOR */

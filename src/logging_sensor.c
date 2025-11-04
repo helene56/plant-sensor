@@ -18,6 +18,7 @@ uint32_t data_logs[STORED_LOGS] = {0};
 uint32_t *ptr_data_logs = data_logs;
 static uint32_t *ptr_end_data_logs = data_logs + STORED_LOGS;
 int current_log_size = 0;
+bool timer_read_soil = false;
 // send 1. date, 2. water_used, 3. temperature, 4. soil moisture (own level system?)
 // evaluate if pump should turn on based on this info.
 
@@ -30,7 +31,18 @@ struct plant_log_data get_sensor_data()
     // get temp and humidity
     struct air_metrics env_readings = read_temp_humidity();
     // get up to date soil val
-    read_smooth_soil();
+    int stable_reading;
+    // int stable_reading = read_smooth_soil();
+
+    for (int i = 0; i < 20; i++)
+    {
+        stable_reading = read_smooth_soil();
+        if (stable_reading)
+        {
+            break;
+        }
+    }
+
     int moisture_level = mv_to_percentage(smooth_soil_val);
     int water_used = 0;
     // TODO: it takes a while for the sensor to register the moisture
@@ -72,15 +84,7 @@ int64_t get_unix_timestamp_ms()
     return init_time_stamp + current_uptime;
 }
 
-void my_work_handler(struct k_work *work)
-{
-    /* do the processing that needs to be done periodically */
-    LOG_INF("Timer going off!");
-    int64_t recieved_time = get_unix_timestamp_ms();
-    LOG_INF("time stamp at timer = %lld", recieved_time);
-    struct plant_log_data current_log = get_sensor_data();
-    log_data(current_log);
-}
+
 
 K_WORK_DEFINE(my_work, my_work_handler);
 
@@ -93,5 +97,19 @@ K_TIMER_DEFINE(my_timer, my_timer_handler, NULL);
 void init_timer()
 {
     LOG_INF("Starting first log");
-    k_timer_start(&my_timer, K_MINUTES(0), K_MINUTES(TEST_LOG_PERIOD_MIN));
+    // k_timer_start(&my_timer, K_MINUTES(0), K_MINUTES(TEST_LOG_PERIOD_MIN));
+    k_timer_start(&my_timer, K_MINUTES(TEST_LOG_PERIOD_MIN), K_MINUTES(0));
+}
+
+
+void my_work_handler(struct k_work *work)
+{
+    /* do the processing that needs to be done periodically */
+    LOG_INF("Timer going off!");
+    int64_t recieved_time = get_unix_timestamp_ms();
+    LOG_INF("time stamp at timer = %lld", recieved_time);
+    struct plant_log_data current_log = get_sensor_data();
+    LOG_INF("collected log");
+    k_timer_start(&my_timer, K_MINUTES(TEST_LOG_PERIOD_MIN), K_MINUTES(0));
+    log_data(current_log);
 }
