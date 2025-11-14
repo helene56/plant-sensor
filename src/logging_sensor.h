@@ -23,5 +23,7 @@ extern uint32_t data_logs[STORED_LOGS];
 
 int64_t get_unix_timestamp_ms();
 void init_timer();
-void my_work_handler();
+void handle_timer();
+struct plant_log_data get_sensor_data();
+void log_data(struct plant_log_data log);
 #endif /* LOGGING_SENSOR */

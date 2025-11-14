@@ -63,6 +63,9 @@ int dry_plant_threshold = 0;
 int wet_plant_threshold = 0;
 int ideal_plant_threshold = 0;
 
+
+
+
 void init_nvs_counter(struct nvs_fs *fs, uint16_t id, int *data, size_t len, const char *data_name)
 {
     int rc = 0;
@@ -560,6 +563,37 @@ void main_calibrate_thread(void *p1, void *p2)
     }
 }
 
+
+void timer_thread()
+{
+    while(1)
+    {
+        if (START_TIMER)
+        {
+            handle_timer();
+            START_TIMER = false;
+        }
+        k_sleep(K_MSEC(100));
+    }
+}
+
+void timer_logging_thread()
+{
+    while(1)
+    {
+        if (START_LOGGING)
+        {
+            struct plant_log_data current_log = get_sensor_data();
+            LOG_INF("collected log");
+            log_data(current_log);
+            START_LOGGING = false;
+            START_TIMER = true;
+        }
+        k_sleep(K_MSEC(100));
+    }
+}
+
+
 static void on_connected(struct bt_conn *conn, uint8_t err)
 {
     if (err)
@@ -646,8 +680,15 @@ K_THREAD_DEFINE(send_data_thread_id1, STACKSIZE, main_calibrate_thread, &ctx, &f
 K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, test_pump_setup, NULL, NULL,
                 NULL, 6, 0, 0);
 
+K_THREAD_DEFINE(send_data_thread_id3, STACKSIZE, timer_thread, NULL, NULL,
+NULL, 6, 0, 0);
+
+
 // K_THREAD_DEFINE(send_data_thread_id3, STACKSIZE, read_soil, &ctx, NULL,
 //                 NULL, 6, 0, 0);
 
 K_THREAD_DEFINE(send_data_thread_id4, STACKSIZE, app_erase_logs, NULL, NULL,
                 NULL, PRIORITY, 0, 0);
+
+K_THREAD_DEFINE(send_data_thread_id5, STACKSIZE, timer_logging_thread, NULL, NULL,
+NULL, 6, 0, 0);

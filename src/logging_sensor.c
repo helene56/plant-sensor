@@ -18,7 +18,9 @@ uint32_t data_logs[STORED_LOGS] = {0};
 uint32_t *ptr_data_logs = data_logs;
 static uint32_t *ptr_end_data_logs = data_logs + STORED_LOGS;
 int current_log_size = 0;
-bool timer_read_soil = false;
+bool START_LOGGING = false;
+// timer
+bool START_TIMER = false;
 // send 1. date, 2. water_used, 3. temperature, 4. soil moisture (own level system?)
 // evaluate if pump should turn on based on this info.
 
@@ -33,8 +35,8 @@ struct plant_log_data get_sensor_data()
     // get up to date soil val
     int stable_reading;
     // int stable_reading = read_smooth_soil();
-
-    for (int i = 0; i < 20; i++)
+    int i;
+    for (i = 0; i < 100; i++)
     {
         stable_reading = read_smooth_soil();
         if (stable_reading)
@@ -42,6 +44,7 @@ struct plant_log_data get_sensor_data()
             break;
         }
     }
+    LOG_INF("Stable reading achieved at loop %d", i);
 
     int moisture_level = mv_to_percentage(smooth_soil_val);
     int water_used = 0;
@@ -86,11 +89,16 @@ int64_t get_unix_timestamp_ms()
 
 
 
-K_WORK_DEFINE(my_work, my_work_handler);
+// K_WORK_DEFINE(my_work, my_work_handler);
 
 void my_timer_handler(struct k_timer *dummy)
 {
-    k_work_submit(&my_work);
+    // k_work_submit(&my_work);
+    // stop the timer thread
+    START_TIMER = false;
+    // start the logging thread
+    START_LOGGING = true;
+
 }
 
 K_TIMER_DEFINE(my_timer, my_timer_handler, NULL);
@@ -99,7 +107,16 @@ void init_timer()
     LOG_INF("Starting first log");
     // k_timer_start(&my_timer, K_MINUTES(0), K_MINUTES(TEST_LOG_PERIOD_MIN));
     k_timer_start(&my_timer, K_MINUTES(TEST_LOG_PERIOD_MIN), K_MINUTES(0));
+    START_TIMER = false;
+    
 }
+
+void handle_timer()
+{
+    LOG_INF("Restarting timer.");
+    k_timer_start(&my_timer, K_MINUTES(TEST_LOG_PERIOD_MIN), K_MINUTES(0));
+}
+
 
 
 void my_work_handler(struct k_work *work)

@@ -5,6 +5,8 @@
 
 // nvs
 #define SOIL_MOI_CAL_ID 1
+extern bool START_TIMER;
+extern bool START_LOGGING;
 // timer thread data
 // extern struct k_sem data_ready_sem;
 // extern struct k_sem start_logging_sem;
