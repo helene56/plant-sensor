@@ -18,6 +18,7 @@
 
 #include "my_pws.h"
 #include "sensor_config.h"
+#include "logging_sensor.h"
 
 #include <zephyr/logging/log.h>
 
@@ -31,7 +32,7 @@ static bool notify_calibration_enabled;
 
 static uint32_t pumping_on_arr[PUMP_ON_ARRAY_SIZE];
 static struct my_pws_cb pws_cb;
-static uint32_t pws_data_logs[62];
+static uint32_t pws_data_logs[STORED_LOGS];
 
 // TODO: i need to have a write handler for my timestamp value coming from the app on start up
 

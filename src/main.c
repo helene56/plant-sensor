@@ -63,9 +63,6 @@ int dry_plant_threshold = 0;
 int wet_plant_threshold = 0;
 int ideal_plant_threshold = 0;
 
-
-
-
 void init_nvs_counter(struct nvs_fs *fs, uint16_t id, int *data, size_t len, const char *data_name)
 {
     int rc = 0;
@@ -159,8 +156,7 @@ void init_nvs(CalibrationContext *ctx)
                      sizeof(wet_plant_threshold), "wet plant threshold");
     init_nvs_counter(&fs, IDEAL_PLANT_ID, &ideal_plant_threshold,
                      sizeof(ideal_plant_threshold), "ideal plant threshold");
-    
-    
+
     printk("status of soil cal: %d\n", soil_moisture_calibrate_status);
     // update calibrationcontext
     if (soil_moisture_calibrate_status)
@@ -189,7 +185,7 @@ struct peripheral_cmd peripheral_cmds[NUM_OF_CMDS];
 
 bool start_soil_sensor = false;
 
-static uint32_t app_data_logs[62];
+// static uint32_t app_data_logs[STORED_LOGS];
 
 enum TIME_STAMP_STATUS current_time_stamp = TIME_STAMP_NOT_RECIEVED;
 
@@ -312,7 +308,9 @@ static void app_erase_logs()
         {
             for (int i = 0; i < STORED_LOGS; ++i)
             {
-                app_data_logs[i] = 0;
+                // app_data_logs[i] = 0;
+                data_logs[i] = 0;
+
             }
             peripheral_cmds[CLEAR_LOG].enabled = false;
             // reset array to start
@@ -448,7 +446,7 @@ void manage_pump(CalibrationContext *ctx)
 
         int64_t elapsed_ms = k_uptime_get() - start_time;
         // should only be on for 5 sec.
-        if (elapsed_ms >= 500)
+        if (elapsed_ms >= 5000)
         {
             gpio_pin_set_dt(&pump, 0);
             LOG_INF("stop watering..");
@@ -457,7 +455,6 @@ void manage_pump(CalibrationContext *ctx)
         }
     }
 }
-
 
 void do_calibration_step(CalibrationContext *ctx, struct nvs_fs *fs)
 {
@@ -563,10 +560,9 @@ void main_calibrate_thread(void *p1, void *p2)
     }
 }
 
-
 void timer_thread()
 {
-    while(1)
+    while (1)
     {
         if (START_TIMER)
         {
@@ -577,22 +573,23 @@ void timer_thread()
     }
 }
 
-void timer_logging_thread()
+void timer_logging_thread(CalibrationContext *ctx)
 {
-    while(1)
+    while (1)
     {
         if (START_LOGGING)
         {
-            struct plant_log_data current_log = get_sensor_data();
+            struct plant_log_data current_log = get_sensor_data(ctx);
             LOG_INF("collected log");
             log_data(current_log);
             START_LOGGING = false;
             START_TIMER = true;
         }
+        // if pump needs to be turned on, manage_pump will manage it
+        manage_pump(ctx);
         k_sleep(K_MSEC(100));
     }
 }
-
 
 static void on_connected(struct bt_conn *conn, uint8_t err)
 {
@@ -681,14 +678,10 @@ K_THREAD_DEFINE(send_data_thread_id2, STACKSIZE, test_pump_setup, NULL, NULL,
                 NULL, 6, 0, 0);
 
 K_THREAD_DEFINE(send_data_thread_id3, STACKSIZE, timer_thread, NULL, NULL,
-NULL, 6, 0, 0);
-
-
-// K_THREAD_DEFINE(send_data_thread_id3, STACKSIZE, read_soil, &ctx, NULL,
-//                 NULL, 6, 0, 0);
+                NULL, 6, 0, 0);
 
 K_THREAD_DEFINE(send_data_thread_id4, STACKSIZE, app_erase_logs, NULL, NULL,
                 NULL, PRIORITY, 0, 0);
 
-K_THREAD_DEFINE(send_data_thread_id5, STACKSIZE, timer_logging_thread, NULL, NULL,
-NULL, 6, 0, 0);
+K_THREAD_DEFINE(send_data_thread_id5, STACKSIZE, timer_logging_thread, &ctx, NULL,
+                NULL, 6, 0, 0);
