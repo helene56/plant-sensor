@@ -2,14 +2,15 @@
 #include <zephyr/drivers/adc.h>
 #include <zephyr/logging/log.h>
 
+#include "sensor_config.h"
 #include "logging_sensor.h"
 #include "soil_sensor.h"
 
 LOG_MODULE_DECLARE(Plant_sensor);
 
-#define LOG_PERIOD_MIN 120 // log every 2 hours
+#define LOG_PERIOD_MIN 120    // log every 2 hours
 #define TEST_LOG_PERIOD_MIN 1 // test logging every 1 min
-// #define STORED_LOGS 62
+
 int64_t init_time_stamp = 0;
 int64_t init_uptime = 0;
 bool pump_on = false;
@@ -27,14 +28,14 @@ bool START_TIMER = false;
 // for now water_used will have to be estimated, as i dont have a flow sensor yet.
 // also dont have a sensor to sense water at bottom of pot yet, so will only turn pump on for a set amount of time.
 
-struct plant_log_data get_sensor_data()
+struct plant_log_data get_sensor_data(CalibrationContext *ctx)
 {
 
     // get temp and humidity
     struct air_metrics env_readings = read_temp_humidity();
     // get up to date soil val
     int stable_reading;
-    // int stable_reading = read_smooth_soil();
+
     int i;
     for (i = 0; i < 100; i++)
     {
@@ -54,12 +55,12 @@ struct plant_log_data get_sensor_data()
     if (moisture_level < 30) // if below 30%
     {
         LOG_INF("turn pump on");
-        pump_on = true;
+        peripheral_cmds[PUMP].enabled = true;
         water_used = 10; // 10 ml
         // TODO: might be interesting to send this info to the app so I know at what time it went below 30
     }
     // TODO: unix time is converted into seconds here. need to consider if it might be better to send as ms?
-    return (struct plant_log_data){.time_stamp = (uint32_t) (get_unix_timestamp_ms() / 1000),
+    return (struct plant_log_data){.time_stamp = (uint32_t)(get_unix_timestamp_ms() / 1000),
                                    .env_readings = env_readings,
                                    .soil_moisture_level = moisture_level,
                                    .water_used = water_used};
@@ -76,9 +77,7 @@ void log_data(struct plant_log_data log)
         *ptr_data_logs = (log.env_readings.temp << 16) | log.water_used;
         ptr_data_logs++;
     }
-    
 }
-
 
 int64_t get_unix_timestamp_ms()
 {
@@ -87,46 +86,24 @@ int64_t get_unix_timestamp_ms()
     return init_time_stamp + current_uptime;
 }
 
-
-
-// K_WORK_DEFINE(my_work, my_work_handler);
-
 void my_timer_handler(struct k_timer *dummy)
 {
-    // k_work_submit(&my_work);
     // stop the timer thread
     START_TIMER = false;
     // start the logging thread
     START_LOGGING = true;
-
 }
 
 K_TIMER_DEFINE(my_timer, my_timer_handler, NULL);
 void init_timer()
 {
     LOG_INF("Starting first log");
-    // k_timer_start(&my_timer, K_MINUTES(0), K_MINUTES(TEST_LOG_PERIOD_MIN));
     k_timer_start(&my_timer, K_MINUTES(TEST_LOG_PERIOD_MIN), K_MINUTES(0));
     START_TIMER = false;
-    
 }
 
 void handle_timer()
 {
     LOG_INF("Restarting timer.");
     k_timer_start(&my_timer, K_MINUTES(TEST_LOG_PERIOD_MIN), K_MINUTES(0));
-}
-
-
-
-void my_work_handler(struct k_work *work)
-{
-    /* do the processing that needs to be done periodically */
-    LOG_INF("Timer going off!");
-    int64_t recieved_time = get_unix_timestamp_ms();
-    LOG_INF("time stamp at timer = %lld", recieved_time);
-    struct plant_log_data current_log = get_sensor_data();
-    LOG_INF("collected log");
-    k_timer_start(&my_timer, K_MINUTES(TEST_LOG_PERIOD_MIN), K_MINUTES(0));
-    log_data(current_log);
 }
