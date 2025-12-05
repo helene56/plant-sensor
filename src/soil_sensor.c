@@ -14,7 +14,7 @@ LOG_MODULE_DECLARE(Plant_sensor);
 #define STABLE_SAMPLE_SIZE 99
 #define MOISTURE_READ_SIZE 5
 #define MAX_TOLERANCE 15
-#define MINUTE_WAIT_TIME 1   // TODO: TEMP VALUE, should be initialized by central over BLE
+#define MINUTE_WAIT_TIME 120   // TODO: TEMP VALUE, should be initialized by central over BLE
 #define SECONDS_WAIT_TIME 10 // TODO: temp value, only for testing
 #define IDEAL_WAIT_TIME_SEC K_SECONDS(SECONDS_WAIT_TIME)
 #define IDEAL_WAIT_TIME_MIN K_MINUTES(MINUTE_WAIT_TIME)
