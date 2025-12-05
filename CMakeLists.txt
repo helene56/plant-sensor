@@ -15,6 +15,7 @@ target_sources(app PRIVATE
   src/dht_sensor.c
   src/soil_sensor.c
   src/logging_sensor.c
+  src/learning_mode.c
 )
 
 # NORDIC SDK APP END

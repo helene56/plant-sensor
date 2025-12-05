@@ -332,6 +332,8 @@ void send_data_thread(void *p1)
     CalibrationContext *ctx = (CalibrationContext *)p1;
     while (1)
     {
+        // TODO: consider to turn TEMPERATURE_HUMIDITY off every time after it has send temp/humidity once
+        // the app will resend command to turn on when you go onto the page next time..
         if (peripheral_cmds[TEMPERATURE_HUMIDITY].enabled)
         {
             /* Send notification, the function sends notifications only if a client is subscribed */
@@ -388,8 +390,8 @@ void test_pump_setup()
         else if (pump_test_started)
         {
             int64_t elapsed_ms = k_uptime_get() - start_time;
-            // should only be on for 20 sec.
-            if (elapsed_ms >= 20000)
+            // should only be on for 5 sec.
+            if (elapsed_ms >= 5000)
             {
                 gpio_pin_set_dt(&pump, 0);
                 LOG_INF("stop watering test cycle..");
@@ -667,6 +669,7 @@ int main(void)
         k_sleep(K_MSEC(RUN_LED_BLINK_INTERVAL));
     }
 }
+
 
 K_THREAD_DEFINE(send_data_thread_id, STACKSIZE, send_data_thread, &ctx, NULL,
                 NULL, 8, 0, 0);

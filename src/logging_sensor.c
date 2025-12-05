@@ -98,12 +98,12 @@ K_TIMER_DEFINE(my_timer, my_timer_handler, NULL);
 void init_timer()
 {
     LOG_INF("Starting first log");
-    k_timer_start(&my_timer, K_MINUTES(TEST_LOG_PERIOD_MIN), K_MINUTES(0));
+    k_timer_start(&my_timer, K_MINUTES(LOG_PERIOD_MIN), K_MINUTES(0));
     START_TIMER = false;
 }
 
 void handle_timer()
 {
     LOG_INF("Restarting timer.");
-    k_timer_start(&my_timer, K_MINUTES(TEST_LOG_PERIOD_MIN), K_MINUTES(0));
+    k_timer_start(&my_timer, K_MINUTES(LOG_PERIOD_MIN), K_MINUTES(0));
 }
