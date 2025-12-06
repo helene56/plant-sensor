@@ -6,7 +6,7 @@
 typedef struct
 {
     int moisture_before; // before watering
-    int moisture_after; // after watering - measure 15 min. after
+    int moisture_after;  // after watering - measure 15 min. after
     uint32_t time_stamp;
     int hour_of_day; // maybe not needed?
     // int day_of_week; // maybe not needed?
@@ -21,11 +21,6 @@ enum time_of_day
     NIGHT,     // 00:00 - 06:00
     PERIOD_COUNTS
 };
-
-enum time_of_day get_time_of_day(int hour_of_day)
-{
-    return ((hour_of_day - 6 + 24) % 24) / 6;
-}
 
 typedef struct
 {
@@ -49,10 +44,11 @@ typedef struct
 
 void phase_init();
 void log_period_init(learning_mode current_mode);
-uint32_t timestamp_ms_to_hour_of_day (uint32_t time_stamp);
+uint32_t timestamp_ms_to_hour_of_day(uint32_t time_stamp);
 int get_drying_speed(int moisture_previous, int moisture_current, int hours_passed);
 learning_profile *get_learning_profile();
 int predict_next_watering(int desired_moisture_per, int avg_drying_speed, int current_moisture);
 void learning_time();
+enum time_of_day get_time_of_day(int hour_of_day);
 
 #endif /* LEARNING_MODE */

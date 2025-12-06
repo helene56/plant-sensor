@@ -28,6 +28,12 @@ learning_data *weekly_end_ptr = weekly_data_collection + DATA_COLLECTION_SIZE;
 
 learning_mode mode;
 
+enum time_of_day get_time_of_day(int hour_of_day)
+{
+    return ((hour_of_day - 6 + 24) % 24) / 6;
+}
+
+
 void phase_init()
 {
     mode.phase = LEARN;
@@ -99,6 +105,30 @@ int predict_next_watering(int desired_moisture_per, int avg_drying_speed, int cu
     return moisture_drop / avg_drying_speed;
 }
 
+void predict_next_time_slot_watering(int current_moisture, int desired_moisture, int current_hour, learning_profile *monthly_profile)
+{
+    enum time_of_day current_time_slot = get_time_of_day(current_hour);
+    int needed_moisture_drop = current_moisture - desired_moisture;
+    int moisture_drop = 0;
+    for (int p = current_time_slot; p < PERIOD_COUNTS; ++p)
+    {
+        // first loop not * 6 but 6-current hours
+        if ((monthly_profile[p].avg_drying_speed * (6 - current_hour)) >= needed_moisture_drop)
+        {
+            // moisture will drop within the current timeslot
+            // return the hours till next drop here
+
+        }
+        else
+        {
+            moisture_drop += (monthly_profile[p].avg_drying_speed * 6);
+        }
+    }
+
+}
+
+
+
 void learning_time()
 {
     if (weekly_ptr < weekly_end_ptr)
@@ -121,7 +151,7 @@ void learning_time()
         }
         weekly_ptr->moisture_before = mv_to_percentage(smooth_soil_val);
         k_sleep(WAIT_TIME_MIN);
-         for (i = 0; i < 100; i++)
+        for (i = 0; i < 100; i++)
         {
             stable_reading = read_smooth_soil();
             if (stable_reading)
@@ -136,6 +166,7 @@ void learning_time()
     else
     {
         // learning time is now over, time to apply learnings
-
+        mode.phase = APPLY;
+        
     }
 }
