@@ -50,5 +50,7 @@ learning_profile *get_learning_profile();
 int predict_next_watering(int desired_moisture_per, int avg_drying_speed, int current_moisture);
 void learning_time();
 enum time_of_day get_time_of_day(int hour_of_day);
+int predict_next_time_slot_watering(int current_moisture, int desired_moisture, int current_hour,
+                                    learning_profile *monthly_profile);
 
 #endif /* LEARNING_MODE */

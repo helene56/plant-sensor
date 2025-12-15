@@ -105,24 +105,46 @@ int predict_next_watering(int desired_moisture_per, int avg_drying_speed, int cu
     return moisture_drop / avg_drying_speed;
 }
 
-void predict_next_time_slot_watering(int current_moisture, int desired_moisture, int current_hour, learning_profile *monthly_profile)
+int predict_next_time_slot_watering(int current_moisture, int desired_moisture, int current_hour, learning_profile *monthly_profile)
 {
     enum time_of_day current_time_slot = get_time_of_day(current_hour);
+    // if current moisture is already below desired moisture it should just water immedaitly...
     int needed_moisture_drop = current_moisture - desired_moisture;
+    printf("needed moisture drop: %d\n", needed_moisture_drop);
     int moisture_drop = 0;
-    for (int p = current_time_slot; p < PERIOD_COUNTS; ++p)
+    int current_set_hour = current_hour;
+    int duration;
+    int count_hours = 0;
+    duration = ((current_time_slot * 6 + 6) % 24) + 6 - current_set_hour ? ((current_time_slot * 6 + 6) % 24) + 6 - current_set_hour : 6;
+    for (int p = current_time_slot; p < PERIOD_COUNTS; )
     {
+
+        moisture_drop += (monthly_profile[p].avg_drying_speed * duration);
+        
         // first loop not * 6 but 6-current hours
-        if ((monthly_profile[p].avg_drying_speed * (6 - current_hour)) >= needed_moisture_drop)
+        if ((moisture_drop) >= needed_moisture_drop)
         {
+            
+            printf("current timeslot = %d\n", p);
             // moisture will drop within the current timeslot
             // return the hours till next drop here
+            moisture_drop -= (monthly_profile[p].avg_drying_speed * duration);
+            // printf("calculated moisture drop after last subtraction: %d\n", moisture_drop);
+            // get the amount of hours in the current timeslot till desired moisture drop is reached
+            // moisture_drop is already a certain percentage; moisture_drop = 20%, desired = 30%,
+            // then in the current timeslot we need to figure out how many hours till the moisture reached 10%
+            int drop = needed_moisture_drop - moisture_drop;
+            int hours_till_drop = drop / monthly_profile[p].avg_drying_speed;
+            // hours_till_drop is the hours in the current zone. needs to get the total amount of hours.
+            count_hours += hours_till_drop;
+            printf("next watering will happen in %d hours.\n", count_hours);
+            return hours_till_drop;
 
         }
-        else
-        {
-            moisture_drop += (monthly_profile[p].avg_drying_speed * 6);
-        }
+        count_hours += duration;
+        p = ((p+1) % 4);
+        duration = 6;
+
     }
 
 }
